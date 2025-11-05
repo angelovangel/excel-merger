@@ -1,0 +1,16 @@
+/* Custom styles for disabled select options */
+.start-well-select option:disabled {
+    background-color: #f3f4f6; /* gray-100 */
+    color: #9ca3af; /* gray-400 */
+}
+
+/* Ensure the fixed header looks right */
+#merged-data-table th {
+    z-index: 20;
+}
+
+/* Style for drag-over state on drop-area */
+#drop-area.drag-over-target {
+    border-color: #4f46e5; /* indigo-600 */
+    background-color: #eef2ff; /* indigo-50 */
+}
