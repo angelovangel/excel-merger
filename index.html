@@ -9,10 +9,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body class="min-h-screen bg-gray-50 font-sans p-4 sm:p-8 text-sm">
-
+<h1 class="text-2xl text-gray-700 mb-2 text-center">Microtiter Plate Data Merger</h2>
     <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
         
-        <div id="upload-section" class="bg-white rounded-1xl shadow-xl p-6 border border-indigo-100 mb-8 flex flex-col md:flex-row gap-4">
+        <div id="upload-section" class="bg-white rounded-1xl shadow-xl p-6 border border-indigo-100 mb-6 flex flex-col md:flex-row gap-4">
             
             <label 
                 id="drop-area"
@@ -32,11 +32,25 @@
             </label>
 
             <div class="flex-shrink-0 md:w-56 flex flex-col justify-center">
-                <label for="preview-column-select" class="text-xs font-medium text-gray-700 mb-1">Preview Data Column (Sheet 2)</label>
+                <label for="sheet-index-select" class="text-xs font-medium text-gray-700 mb-1">Sheet Index (1-5)</label>
+                <select
+                    id="sheet-index-select"
+                    class="block w-full text-sm py-2.5 px-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-700 bg-white"
+                    title="Select the Excel sheet (0-indexed) to extract data from. Sheet 1 is index 0."
+                >
+                    <option value="0">Sheet 1</option>
+                    <option value="1" selected>Sheet 2</option>
+                    <option value="2">Sheet 3</option>
+                    <option value="3">Sheet 4</option>
+                    <option value="4">Sheet 5</option>
+                </select>
+            </div>
+            <div class="flex-shrink-0 md:w-56 flex flex-col justify-center">
+                <label for="preview-column-select" class="text-xs font-medium text-gray-700 mb-1">Preview Data Column</label>
                 <select
                     id="preview-column-select"
                     class="block w-full text-sm py-2.5 px-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-700 bg-white"
-                    title="Select the column from Sheet 2 to display in the 96-well preview grid."
+                    title="Select the column from the chosen sheet to display in the 96-well preview grid."
                 >
                     </select>
             </div>

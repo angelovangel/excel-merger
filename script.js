@@ -6,11 +6,12 @@ let downloadableHeader = [];
 
 // --- DYNAMIC PREVIEW STATE ---
 let previewColumnIndex = 9; // Default Column J (0-indexed)
-// New: Store the actual headers for the dropdown display
+// Store the actual headers for the dropdown display
 let globalColumnHeaders = []; // Array of header strings ['A', 'B', 'C', ...] or ['ID', 'Value', 'Name', ...]
+// Store the sheet number to be used (Sheet 2, index 1)
+let globalSheetIndex = 1; // 🌟 MODIFIED: This is now the dynamic state variable
 
 // --- CONSTANTS ---
-const SHEET_INDEX = 1; // Sheet 2 (0-indexed)
 const ROWS = 8;
 const COLS = 12;
 const GRID_SIZE = ROWS * COLS; // 96
@@ -179,7 +180,7 @@ function findFirstAvailableWell(occupiedIndices, requiredLength) {
 // --- CORE LOGIC ---
 
 /**
- * The main function to run after any state change (upload, reorder, well change, column change).
+ * The main function to run after any state change (upload, reorder, well change, column change, sheet change).
  * The order of execution is crucial here.
  */
 function updateApp() {
@@ -207,7 +208,7 @@ function isRowEmpty(row) {
  * 1. Determines the universal maximum column count.
  * 2. Extracts and pads ALL columns for the downloadable file (downloadableDataAoA) from FILTERED non-header rows (up to 96).
  * 3. Extracts Column [previewColumnIndex] data, positions it based on startWell, and generates the 8x12 preview (mergedPreviewData).
- * 4. NEW: Populates globalColumnHeaders for the dropdown display.
+ * 4. Populates globalColumnHeaders for the dropdown display.
  */
 function mergeData() {
     downloadableDataAoA = [];
@@ -220,10 +221,11 @@ function mergeData() {
     }
 
     let maxOriginalColumns = 0;
+    const currentSheetIndex = globalSheetIndex; // Use the dynamic index
 
     // --- Pass 1: Determine Max Column Count (N) ---
     files.forEach(file => {
-        const fileSheetData = file.sheetData[SHEET_INDEX];
+        const fileSheetData = file.sheetData[currentSheetIndex]; // 🌟 MODIFIED
         if (fileSheetData && fileSheetData.length > 0) {
             // Check the length of the header row (index 0)
             maxOriginalColumns = Math.max(maxOriginalColumns, fileSheetData[0].length);
@@ -231,9 +233,9 @@ function mergeData() {
     });
 
     // --- Pass 2: Define Universal Header and Global Column Headers ---
-    let firstFileSheetData = files[0].sheetData[SHEET_INDEX];
+    let firstFileSheetData = files[0].sheetData[currentSheetIndex]; // 🌟 MODIFIED
     if (!firstFileSheetData || firstFileSheetData.length === 0) {
-         console.error("First file is missing Sheet 2 data.");
+         console.error(`First file is missing Sheet ${currentSheetIndex + 1} data.`);
          return;
     }
 
@@ -264,7 +266,7 @@ function mergeData() {
     // --- Pass 3: Process and Align Data for All Files ---
     files.forEach((file, fileIndex) => {
         const fileColor = FILE_COLORS[fileIndex % FILE_COLORS.length];
-        const fileSheetData = file.sheetData[SHEET_INDEX];
+        const fileSheetData = file.sheetData[currentSheetIndex]; // 🌟 MODIFIED
 
         if (!fileSheetData || fileSheetData.length <= 1) { 
             return;
@@ -323,6 +325,7 @@ function mergeData() {
     
     // Define the current header name for display/error messages
     const currentHeader = globalColumnHeaders[previewColumnIndex] || getColumnName(previewColumnIndex);
+    const currentSheetNameDisplay = files[0].sheetData[currentSheetIndex] ? `Sheet ${currentSheetIndex + 1}` : 'Selected Sheet'; // Fallback display name
 
     const totalPopulatedCells = finalGrid1D.filter(cell => cell.value !== '').length;
 
@@ -330,7 +333,7 @@ function mergeData() {
          // Check if the selected column index itself is out of range for ALL files
          let isColumnOutOfRange = true;
          files.forEach(file => {
-             const fileSheetData = file.sheetData[SHEET_INDEX];
+             const fileSheetData = file.sheetData[currentSheetIndex]; // 🌟 MODIFIED
              if (fileSheetData && fileSheetData.length > 0 && fileSheetData[0].length > previewColumnIndex) {
                  isColumnOutOfRange = false;
              }
@@ -340,10 +343,11 @@ function mergeData() {
          const letterName = getColumnName(previewColumnIndex);
          const displayHeaderName = currentHeader === letterName ? `Column ${currentHeader}` : `${currentHeader} (${letterName})`;
 
+         // 🌟 MODIFIED ERROR MESSAGE to include the current sheet
          if (isColumnOutOfRange) {
-             mergedPreviewData = [[`Selected ${displayHeaderName} is out of range for all files.`]];
+             mergedPreviewData = [[`Selected ${displayHeaderName} is out of range for all files in ${currentSheetNameDisplay}.`]];
          } else {
-             mergedPreviewData = [[`No data found in ${displayHeaderName} (Sheet 2) after processing.`]];
+             mergedPreviewData = [[`No data found in ${displayHeaderName} (${currentSheetNameDisplay}) after processing.`]];
          }
          
          return;
@@ -376,6 +380,7 @@ async function handleFileUpload(fileList) {
     }
 
     const uploadedFiles = Array.from(fileList);
+    const currentSheetIndex = globalSheetIndex; // Use the dynamic index
 
     const processedFiles = await Promise.all(
         uploadedFiles.map(async (file) => {
@@ -385,16 +390,18 @@ async function handleFileUpload(fileList) {
 
                 const sheetData = [];
 
-                // Extract data from all sheets, but specifically check Sheet 2 availability
+                // Extract data from all sheets, but specifically check the selected Sheet availability
                 workbook.SheetNames.forEach((name, index) => {
                     const worksheet = workbook.Sheets[name];
+                    // We extract ALL sheets data and store it, so when the sheet index changes, 
+                    // we don't have to re-upload.
                     sheetData[index] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                 });
 
-                const sheet2Name = workbook.SheetNames[SHEET_INDEX] || 'N/A';
-                const sheet2Data = sheetData[SHEET_INDEX] || [];
+                const sheetNameForDisplay = workbook.SheetNames[currentSheetIndex] || `Sheet ${currentSheetIndex + 1} (Missing)`;
+                const sheetDataForProcessing = sheetData[currentSheetIndex] || []; // 🌟 MODIFIED
 
-                const dataRowsToProcess = sheet2Data.length > 0 ? sheet2Data.slice(1) : [];
+                const dataRowsToProcess = sheetDataForProcessing.length > 0 ? sheetDataForProcessing.slice(1) : [];
                 const filteredDataRows = dataRowsToProcess.filter(row => !isRowEmpty(row));
                 const filteredRowsCount = filteredDataRows.length;
 
@@ -406,8 +413,8 @@ async function handleFileUpload(fileList) {
                     name: file.name,
                     dataRows: filteredRowsCount, // Non-empty rows count for display (UNCAPPED)
                     previewCellCount: previewCellCount, // Capped at 96 (Used for positioning/collision)
-                    sheetData: sheetData, 
-                    sheetName: sheet2Name,
+                    sheetData: sheetData, // Array containing data for ALL sheets
+                    sheetName: sheetNameForDisplay,
                     startWell: 'A1' // Default starting well
                 };
             } catch (error) {
@@ -447,6 +454,18 @@ function handleColumnChange(newIndex) {
 }
 
 /**
+ * 🌟 NEW HANDLER 🌟
+ * Updates the preview sheet index globally.
+ */
+function handleSheetIndexChange(newIndex) {
+    const newIndexNum = parseInt(newIndex, 10);
+    if (!isNaN(newIndexNum) && newIndexNum >= 0) {
+        globalSheetIndex = newIndexNum;
+        updateApp();
+    }
+}
+
+/**
  * Removes a file from the list by its ID.
  */
 function removeFile(id) {
@@ -455,7 +474,7 @@ function removeFile(id) {
 }
 
 /**
- * Downloads the full concatenated data (ALL columns from Sheet 2).
+ * Downloads the full concatenated data (ALL columns from the SELECTED sheet).
  */
 function downloadMerged() {
     if (typeof XLSX === 'undefined' || !XLSX || files.length === 0) return;
@@ -501,10 +520,13 @@ function downloadMerged() {
     // 4. Create a worksheet from the Array of Arrays
     const ws = XLSX.utils.aoa_to_sheet(finalAoA);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Full_Sheet2_Concatenated');
+    
+    // 🌟 MODIFIED: Include the sheet index in the download filename
+    const sheetNum = globalSheetIndex + 1;
+    XLSX.utils.book_append_sheet(wb, ws, `Sheet${sheetNum}_Concatenated`);
 
     // 5. Write and download the file
-    XLSX.writeFile(wb, 'full_sheet2_concatenated_data_96wells.xlsx');
+    XLSX.writeFile(wb, `full_sheet${sheetNum}_concatenated_data_96wells.xlsx`);
 }
 
 // --- RENDERING FUNCTIONS ---
@@ -641,13 +663,18 @@ function renderFileItem(file, index) {
     }).join('');
 
 
+    // 🌟 MODIFIED: Update display to show the selected sheet name
+    const sheetNameDisplay = file.sheetData[globalSheetIndex] 
+        ? file.sheetData[globalSheetIndex][0] ? `Sheet ${globalSheetIndex + 1}` : file.sheetName // Use extracted sheet name or fallback
+        : `Sheet ${globalSheetIndex + 1} (Missing)`;
+    
     item.innerHTML = `
         <div class="flex items-center gap-3 flex-1 min-w-0 w-full">
             <div class="w-2.5 h-2.5 rounded-full ${fileColor} shadow-md flex-shrink-0"></div> 
             <div class="flex flex-col min-w-0 flex-1">
                 <span class="font-semibold text-gray-800 truncate text-sm" title="${file.name}">${file.name}</span>
                 <span class="text-xs text-indigo-500">
-                    (${file.dataRows} Samples)
+                    (${file.dataRows} Samples from ${sheetNameDisplay}) 
                 </span>
             </div>
         </div>
@@ -659,7 +686,7 @@ function renderFileItem(file, index) {
                 data-file-id="${file.id}"
                 class="start-well-select block w-full text-xs py-1 px-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-700 bg-white"
                 ${requiredLength === 0 || requiredLength > GRID_SIZE ? 'disabled' : ''}
-                title="${requiredLength === 0 ? 'No non-empty data rows found in Sheet 2.' : (requiredLength > GRID_SIZE ? 'File data exceeds grid size (96).' : '')}"
+                title="${requiredLength === 0 ? `No non-empty data rows found in ${sheetNameDisplay}.` : (requiredLength > GRID_SIZE ? 'File data exceeds grid size (96).' : '')}"
             >
                 ${wellOptions}
             </select>
@@ -713,7 +740,7 @@ function renderMergedData() {
     const summaryInfo = document.getElementById('summary-info');
     const columnDisplay = document.getElementById('current-column-display');
     
-    // --- Determine current column display name ---
+    // --- Determine current column display name and sheet name ---
     const currentHeader = globalColumnHeaders[previewColumnIndex] || getColumnName(previewColumnIndex);
     const letterName = getColumnName(previewColumnIndex);
     
@@ -725,6 +752,18 @@ function renderMergedData() {
         displayHeaderName = `${currentHeader} (${letterName})`;
     }
     
+    // 🌟 NEW: Get sheet name for display
+    const currentSheetIndex = globalSheetIndex;
+    let sheetDisplayName = `Sheet ${currentSheetIndex + 1}`;
+    if (files.length > 0 && files[0].sheetData[currentSheetIndex]) {
+         // Try to get the sheet name from the first file's stored data
+         const workbookSheetName = files[0].sheetData[currentSheetIndex].sheetName; 
+         if (workbookSheetName && workbookSheetName.toLowerCase() !== sheetDisplayName.toLowerCase()) {
+              sheetDisplayName = workbookSheetName;
+         }
+    }
+    
+
     if (columnDisplay) {
          columnDisplay.textContent = displayHeaderName;
     }
@@ -739,26 +778,29 @@ function renderMergedData() {
     downloadButton.disabled = false;
 
     // --- FIX 1: Calculate the total uncapped sample count here (from file.dataRows) ---
-    const totalUncappedSamples = files.reduce((sum, file) => sum + file.dataRows, 0);
+    const totalUncappedSamples = files.reduce((sum, file) => {
+        // Only count samples if the file contains data for the selected sheet
+        const fileSheetData = file.sheetData[globalSheetIndex];
+        return sum + (fileSheetData && fileSheetData.length > 1 ? file.dataRows : 0);
+    }, 0);
 
     // Calculate the number of cells actually populated in the 8x12 grid (max 96)
     const totalPopulatedPreviewCells = mergedPreviewData.reduce((sum, row) => sum + row.filter(cell => cell.value !== undefined && cell.value !== '').length, 0);
 
     // -------------------------------------------------------------------
     // >>> MODIFIED WARNING POPUP LOGIC <<<
-    // Check the uncapped total, not the capped preview total.
     // -------------------------------------------------------------------
     if (totalUncappedSamples > GRID_SIZE) { // GRID_SIZE is 96
         const overflow = totalUncappedSamples - GRID_SIZE;
         // The message is now based on the total *available* samples.
-        alert(`⚠️ Warning: Total number of samples across all files is ${totalUncappedSamples}. Since the microtiter plate grid is 96 wells, ${overflow} samples will be excluded from the well-mapped output due to grid capacity and/or collision resolution. Please check your file assignments.`);
+        alert(`⚠️ Warning: Total number of samples across all files in ${sheetDisplayName} is ${totalUncappedSamples}. Only the first 96 samples will be displayed/included in the final 96-well grid.`);
     }
     // -------------------------------------------------------------------
     
     // --- FIX 2: Update summary info to show both uncapped and preview totals ---
     summaryInfo.innerHTML = `
-        Total samples: <span class="font-semibold text-green-700">${totalPopulatedPreviewCells}</span> (Out of ${totalUncappedSamples} available) | 
-        Previewing <span class="font-semibold text-green-700">${displayHeaderName}</span> from Sheet 2
+        Total samples: <span class="font-semibold text-green-700">${totalPopulatedPreviewCells}</span> | 
+        Previewing <span class="font-semibold text-green-700">${displayHeaderName}</span> from <span class="font-semibold text-green-700">${sheetDisplayName}</span>
     `;
 
     // 1. Build the table HTML (8x12 fixed grid, using mergedPreviewData)
@@ -829,7 +871,8 @@ function init() {
     const fileInput = document.getElementById('file-input');
     const dropArea = document.getElementById('drop-area');
     const downloadButton = document.getElementById('download-button');
-    const columnSelect = document.getElementById('preview-column-select'); // New element
+    const columnSelect = document.getElementById('preview-column-select');
+    const sheetSelect = document.getElementById('sheet-index-select'); // 🌟 NEW ELEMENT
 
     // 1. File Input Listener
     fileInput.addEventListener('change', (e) => {
@@ -840,14 +883,21 @@ function init() {
     // 2. Download Listener
     downloadButton.addEventListener('click', downloadMerged);
     
-    // 3. Column Select Listener (New)
+    // 3. Column Select Listener
     if (columnSelect) {
         columnSelect.addEventListener('change', (e) => {
             handleColumnChange(e.target.value);
         });
     }
 
-    // 4. Drop Area Listeners
+    // 4. 🌟 NEW Sheet Select Listener
+    if (sheetSelect) {
+        sheetSelect.addEventListener('change', (e) => {
+            handleSheetIndexChange(e.target.value);
+        });
+    }
+
+    // 5. Drop Area Listeners
     dropArea.addEventListener('dragover', (e) => {
         e.preventDefault(); 
         dropArea.classList.add('drag-over-target');
