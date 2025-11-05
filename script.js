@@ -404,8 +404,8 @@ async function handleFileUpload(fileList) {
                 return {
                     id: Math.random().toString(36).substr(2, 9),
                     name: file.name,
-                    dataRows: filteredRowsCount, // Non-empty rows count for display
-                    previewCellCount: previewCellCount, // Capped at 96
+                    dataRows: filteredRowsCount, // Non-empty rows count for display (UNCAPPED)
+                    previewCellCount: previewCellCount, // Capped at 96 (Used for positioning/collision)
                     sheetData: sheetData, 
                     sheetName: sheet2Name,
                     startWell: 'A1' // Default starting well
@@ -450,7 +450,7 @@ function handleColumnChange(newIndex) {
  * Removes a file from the list by its ID.
  */
 function removeFile(id) {
-    files = files.filter(f => f.id === id);
+    files = files.filter(f => f.id !== id);
     updateApp();
 }
 
@@ -703,6 +703,9 @@ function renderFileList() {
     });
 }
 
+// ---------------------------------------------------------------------------------
+// 🌟 MODIFIED SECTION: renderMergedData with the Warning Popup fix
+// ---------------------------------------------------------------------------------
 function renderMergedData() {
     const viewContainer = document.getElementById('merged-data-view');
     const tableContainer = document.getElementById('merged-table-container');
@@ -735,11 +738,26 @@ function renderMergedData() {
     viewContainer.classList.remove('hidden');
     downloadButton.disabled = false;
 
-    // Calculate summary
+    // --- FIX 1: Calculate the total uncapped sample count here (from file.dataRows) ---
+    const totalUncappedSamples = files.reduce((sum, file) => sum + file.dataRows, 0);
+
+    // Calculate the number of cells actually populated in the 8x12 grid (max 96)
     const totalPopulatedPreviewCells = mergedPreviewData.reduce((sum, row) => sum + row.filter(cell => cell.value !== undefined && cell.value !== '').length, 0);
 
+    // -------------------------------------------------------------------
+    // >>> MODIFIED WARNING POPUP LOGIC <<<
+    // Check the uncapped total, not the capped preview total.
+    // -------------------------------------------------------------------
+    if (totalUncappedSamples > GRID_SIZE) { // GRID_SIZE is 96
+        const overflow = totalUncappedSamples - GRID_SIZE;
+        // The message is now based on the total *available* samples.
+        alert(`⚠️ Warning: Total number of samples across all files is ${totalUncappedSamples}. Since the microtiter plate grid is 96 wells, ${overflow} samples will be excluded from the well-mapped output due to grid capacity and/or collision resolution. Please check your file assignments.`);
+    }
+    // -------------------------------------------------------------------
+    
+    // --- FIX 2: Update summary info to show both uncapped and preview totals ---
     summaryInfo.innerHTML = `
-        Total samples: <span class="font-semibold text-green-700">${totalPopulatedPreviewCells}</span> | 
+        Total samples: <span class="font-semibold text-green-700">${totalPopulatedPreviewCells}</span> (Out of ${totalUncappedSamples} available) | 
         Previewing <span class="font-semibold text-green-700">${displayHeaderName}</span> from Sheet 2
     `;
 
@@ -800,6 +818,10 @@ function renderMergedData() {
 
     tableContainer.innerHTML = tableHTML;
 }
+// ---------------------------------------------------------------------------------
+// 🌟 END MODIFIED SECTION
+// ---------------------------------------------------------------------------------
+
 
 // --- INITIALIZATION ---
 
