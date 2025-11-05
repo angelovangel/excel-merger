@@ -17,16 +17,18 @@ const COLS = 12;
 const GRID_SIZE = ROWS * COLS; // 96
 const rowLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
-// Tailwind classes for coloring the data cells (using opacity /70 for readability)
+// Tailwind classes for coloring the data cells (using opacity /15 for readability)
 const FILE_COLORS = [
-    'bg-sky-100/70',   
-    'bg-lime-100/70',  
-    'bg-amber-100/70', 
-    'bg-rose-100/70',  
-    'bg-fuchsia-100/70', 
-    'bg-teal-100/70',  
-    'bg-orange-100/70',
-    'bg-violet-100/70',
+    'bg-blue-500/15',   
+    'bg-pink-500/15',  
+    'bg-teal-500/15', 
+    'bg-purple-500/15',  
+    'bg-orange-500/15',
+    'bg-lime-600/15',
+    'bg-red-500/15',
+    'bg-cyan-500/15',
+    'bg-indigo-600/15',
+    'bg-amber-500/15'
 ];
 
 // --- WELL POSITION UTILITIES ---
@@ -454,7 +456,6 @@ function handleColumnChange(newIndex) {
 }
 
 /**
- * 🌟 NEW HANDLER 🌟
  * Updates the preview sheet index globally.
  */
 function handleSheetIndexChange(newIndex) {
@@ -521,7 +522,7 @@ function downloadMerged() {
     const ws = XLSX.utils.aoa_to_sheet(finalAoA);
     const wb = XLSX.utils.book_new();
     
-    // 🌟 MODIFIED: Include the sheet index in the download filename
+    // 
     const sheetNum = globalSheetIndex + 1;
     XLSX.utils.book_append_sheet(wb, ws, `Sheet${sheetNum}_Concatenated`);
 
@@ -731,7 +732,7 @@ function renderFileList() {
 }
 
 // ---------------------------------------------------------------------------------
-// 🌟 MODIFIED SECTION: renderMergedData with the Warning Popup fix
+// 
 // ---------------------------------------------------------------------------------
 function renderMergedData() {
     const viewContainer = document.getElementById('merged-data-view');
@@ -810,7 +811,7 @@ function renderMergedData() {
                 <tr>
                     <th class="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[30px] sticky left-0 z-20"></th> 
                     ${[...Array(COLS)].map((_, i) => `
-                        <th class="px-2 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[50px]">
+                        <th class="px-2 py-2 text-center text-xs font-semibold text-gray-600 tracking-wider min-w-[60px]">
                             ${i + 1}
                         </th>
                     `).join('')}
@@ -861,7 +862,7 @@ function renderMergedData() {
     tableContainer.innerHTML = tableHTML;
 }
 // ---------------------------------------------------------------------------------
-// 🌟 END MODIFIED SECTION
+// 
 // ---------------------------------------------------------------------------------
 
 
