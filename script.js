@@ -9,7 +9,7 @@ let previewColumnIndex = 9; // Default Column J (0-indexed)
 // Store the actual headers for the dropdown display
 let globalColumnHeaders = []; // Array of header strings ['A', 'B', 'C', ...] or ['ID', 'Value', 'Name', ...]
 // Store the sheet number to be used (Sheet 2, index 1)
-let globalSheetIndex = 1; // 🌟 MODIFIED: This is now the dynamic state variable
+let globalSheetIndex = 1; //
 
 // --- CONSTANTS ---
 const ROWS = 8;
@@ -251,8 +251,8 @@ function mergeData() {
     }
 
     // Set the downloadable header
-    downloadableHeader = ['Well Position', ...paddedHeader]; 
-    downloadableHeader.push('Source File'); // The last column
+    downloadableHeader = ['Well', ...paddedHeader]; 
+    downloadableHeader.push('Source'); // The last column
 
     // Set the global column headers for the dropdown, falling back to column letter for empty headers
     // The displayName is the actual header or the column letter if blank.
@@ -477,17 +477,20 @@ function removeFile(id) {
 /**
  * Downloads the full concatenated data (ALL columns from the SELECTED sheet).
  */
+/**
+ * Downloads the full concatenated data (ALL columns from the SELECTED sheet),
+ * now removing columns that are completely empty across all 96 wells.
+ */
 function downloadMerged() {
     if (typeof XLSX === 'undefined' || !XLSX || files.length === 0) return;
 
-    // downloadableHeader is now guaranteed to be aligned and correctly sized (N+2 columns)
-    const expectedDataColumnsLength = downloadableHeader.length - 1; 
+    // The number of original data columns (N columns, excluding Well and Source File)
+    const originalDataColumnCount = downloadableHeader.length - 2; 
 
-    // 1. Initialize the 96-well final grid with all WELL POSITIONS
+    // 1. Initialize the 96-well final grid with all WELL POSITIONS (size N+2)
     const final96WellGrid = ALL_WELLS.map(well => {
-        // The empty row must be the size of the final downloadableHeader.
         const emptyRow = new Array(downloadableHeader.length).fill('');
-        emptyRow[0] = well; // Well Position is the first column
+        emptyRow[0] = well; 
         return emptyRow;
     });
 
@@ -506,20 +509,66 @@ function downloadMerged() {
 
                 const targetIndexInAoA = final1DIndex + 1; 
 
-                // Build the data portion of the row: [Padded Original Values..., Source File Name]
-                // rowObj.values is already padded to maxOriginalColumns
+                // Data portion of the row: [Padded Original Values..., Source File Name] (N+1 columns)
                 const finalDataRowValues = [...rowObj.values];
-                finalDataRowValues.push(rowObj.sourceName); // Add Source File name (N+1 columns)
+                finalDataRowValues.push(rowObj.sourceName); 
 
-                // Overwrite the values in the final AoA row (skip the first element which is the Well Position)
-                // Splice replaces the expected number of data columns starting at index 1.
-                finalAoA[targetIndexInAoA].splice(1, expectedDataColumnsLength, ...finalDataRowValues);
+                // Overwrite the values in the final AoA row (starting at index 1)
+                finalAoA[targetIndexInAoA].splice(1, originalDataColumnCount + 1, ...finalDataRowValues);
             }
         }
     });
 
+    // --- NEW LOGIC TO REMOVE EMPTY COLUMNS ACROSS ALL 96 WELLS ---
+    
+    // Tracks which of the *original* data columns (indices 1 to originalDataColumnCount) are NOT empty
+    const nonTrivialOriginalColumns = new Array(originalDataColumnCount).fill(false);
+
+    // Check all 96 data rows (skip header at index 0)
+    for (let i = 1; i < finalAoA.length; i++) {
+        const row = finalAoA[i];
+        // Check only the original data columns (indices 1 to originalDataColumnCount)
+        for (let j = 1; j <= originalDataColumnCount; j++) {
+            if (row[j] !== undefined && row[j] !== null && String(row[j]).trim() !== '') {
+                nonTrivialOriginalColumns[j - 1] = true; // Mark as non-empty 
+            }
+        }
+    }
+
+    // 1. Initialize the final output array (will contain only non-empty columns)
+    const finalAoAFiltered = [];
+    
+    // 2. Filter the Header (index 0)
+    const originalHeader = finalAoA[0];
+    const filteredHeader = [originalHeader[0]]; // 'Well Position'
+    
+    for (let j = 0; j < originalDataColumnCount; j++) {
+        if (nonTrivialOriginalColumns[j]) {
+            filteredHeader.push(originalHeader[j + 1]); // Add non-empty column header
+        }
+    }
+    filteredHeader.push(originalHeader[originalDataColumnCount + 1]); // 'Source File'
+    
+    finalAoAFiltered.push(filteredHeader);
+
+    // 3. Filter the Data Rows (index 1 to 96)
+    for (let i = 1; i < finalAoA.length; i++) {
+        const row = finalAoA[i];
+        const filteredRow = [row[0]]; // Well Position
+        
+        for (let j = 0; j < originalDataColumnCount; j++) {
+            if (nonTrivialOriginalColumns[j]) {
+                filteredRow.push(row[j + 1]); // Add data from non-empty column
+            }
+        }
+        filteredRow.push(row[originalDataColumnCount + 1]); // Source File
+        
+        finalAoAFiltered.push(filteredRow);
+    }
+    // --- END NEW LOGIC ---
+
     // 4. Create a worksheet from the Array of Arrays
-    const ws = XLSX.utils.aoa_to_sheet(finalAoA);
+    const ws = XLSX.utils.aoa_to_sheet(finalAoAFiltered); // Use the FILTERED array
     const wb = XLSX.utils.book_new();
     
     // 
@@ -527,7 +576,7 @@ function downloadMerged() {
     XLSX.utils.book_append_sheet(wb, ws, `Sheet${sheetNum}_Concatenated`);
 
     // 5. Write and download the file
-    XLSX.writeFile(wb, `full_sheet${sheetNum}_concatenated_data_96wells.xlsx`);
+    XLSX.writeFile(wb, `sheet${sheetNum}_plate_data.xlsx`);
 }
 
 // --- RENDERING FUNCTIONS ---
