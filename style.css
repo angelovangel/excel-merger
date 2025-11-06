@@ -14,3 +14,57 @@
     border-color: #4f46e5; /* indigo-600 */
     background-color: #eef2ff; /* indigo-50 */
 }
+
+/* style.css */
+
+/* 1. Set up the table cells for custom tooltip positioning */
+#merged-table-container td {
+    /* Required for absolute positioning of the pseudo-elements (tooltip/arrow) */
+    position: relative; 
+    /* Changes cursor to indicate interactivity */
+    cursor: pointer; 
+}
+
+/* 2. Custom Tooltip Box (::after) on hover, using data-well content */
+#merged-table-container td:hover::after {
+    /* Retrieves the well coordinate (e.g., 'C4') from the data-well attribute */
+    content: attr(data-well); 
+    
+    /* Visual and Positioning styles */
+    position: absolute;
+    top: -25px; /* Position above the cell */
+    left: 50%;
+    transform: translateX(-50%); /* Center the tooltip horizontally */
+    z-index: 50; /* Ensure it overlays the table and other content */
+    
+    /* Appearance */
+    background-color: #1f2937; /* Dark background (Tailwind Gray-800) */
+    color: #fff;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap; /* Keeps coordinates on one line */
+    
+    /* Optimization: prevent the tooltip itself from intercepting mouse events */
+    pointer-events: none; 
+}
+
+/* 3. Custom Tooltip Arrow (::before) on hover */
+#merged-table-container td:hover::before {
+    content: '';
+    position: absolute;
+    top: -4px; /* Position just below the tooltip box */
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    
+    /* Creates a small downward-pointing triangle */
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid #1f2937; /* Match background-color of the tooltip box */
+    
+    pointer-events: none;
+}

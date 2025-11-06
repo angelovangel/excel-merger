@@ -841,9 +841,16 @@ function renderMergedData() {
                         const cellValue = cellObj.value || '';
                         const cellColorClass = cellObj.sourceColor || ''; // Apply the color class with opacity
 
+                        // 🌟 MODIFICATION START: Use data-well instead of title
+                        const index = j * ROWS + i; // Calculate the 1D index based on column-major order
+                        const wellPosition = indexToWell(index); // Convert to well coordinate (e.g., 'C4')
+                        // 🌟 MODIFICATION END
+
                         return `
                             <td 
                                 class="px-2 py-2 text-xs text-gray-700 text-center border-r border-gray-100 last:border-r-0 ${cellColorClass}"
+                                data-well="${wellPosition}:${cellValue}" // 🌟 ADDED data-well ATTRIBUTE
+                               
                             >
                                 ${cellValue}
                             </td>
