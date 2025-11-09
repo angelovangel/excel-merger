@@ -849,8 +849,8 @@ function renderMergedData() {
     
     // --- FIX 2: Update summary info to show both uncapped and preview totals ---
     summaryInfo.innerHTML = `
-        Total samples: <span class="font-semibold text-green-700">${totalPopulatedPreviewCells}</span> | 
-        Previewing <span class="font-semibold text-green-700">${displayHeaderName}</span> from <span class="font-semibold text-green-700">${sheetDisplayName}</span>
+        Total samples: <span class="font-semibold text-green-900">${totalPopulatedPreviewCells}</span> | 
+        Previewing <span class="font-semibold text-green-900">${displayHeaderName}</span> from <span class="font-semibold text-green-900">${sheetDisplayName}</span>
     `;
 
     // 1. Build the table HTML (8x12 fixed grid, using mergedPreviewData)
