@@ -713,7 +713,7 @@ function renderFileItem(file, index) {
     }).join('');
 
 
-    // 🌟 MODIFIED: Update display to show the selected sheet name
+    // Update display to show the selected sheet name
     const sheetNameDisplay = file.sheetData[globalSheetIndex] 
         ? file.sheetData[globalSheetIndex][0] ? `Sheet ${globalSheetIndex + 1}` : file.sheetName // Use extracted sheet name or fallback
         : `Sheet ${globalSheetIndex + 1} (Missing)`;
@@ -838,7 +838,7 @@ function renderMergedData() {
     const totalPopulatedPreviewCells = mergedPreviewData.reduce((sum, row) => sum + row.filter(cell => cell.value !== undefined && cell.value !== '').length, 0);
 
     // -------------------------------------------------------------------
-    // >>> MODIFIED WARNING POPUP LOGIC <<<
+    
     // -------------------------------------------------------------------
     if (totalUncappedSamples > GRID_SIZE) { // GRID_SIZE is 96
         const overflow = totalUncappedSamples - GRID_SIZE;
@@ -847,7 +847,7 @@ function renderMergedData() {
     }
     // -------------------------------------------------------------------
     
-    // --- FIX 2: Update summary info to show both uncapped and preview totals ---
+    // Update summary info to show both uncapped and preview totals ---
     summaryInfo.innerHTML = `
         Total samples: <span class="font-semibold text-green-900">${totalPopulatedPreviewCells}</span> | 
         Previewing <span class="font-semibold text-green-900">${displayHeaderName}</span> from <span class="font-semibold text-green-900">${sheetDisplayName}</span>
