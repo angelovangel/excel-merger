@@ -579,6 +579,38 @@ function downloadMerged() {
     XLSX.writeFile(wb, `sheet${sheetNum}_plate_data.xlsx`);
 }
 
+/**
+ * Downloads a summary of submissions (user vs number of samples).
+ */
+function downloadSummary() {
+    if (typeof XLSX === 'undefined' || !XLSX || files.length === 0) return;
+
+    const summaryData = files.map(file => {
+        const sheetData = file.sheetData[globalSheetIndex];
+        let username = "Unknown";
+        
+        if (sheetData && sheetData.length > 0) {
+            const header = sheetData[0];
+            const usernameColIndex = header.findIndex(h => String(h || '').toLowerCase() === 'username');
+            
+            if (usernameColIndex !== -1 && sheetData.length > 1) {
+                username = sheetData[1][usernameColIndex] || "Unknown";
+            }
+        }
+        
+        return {
+            "user": username,
+            "number of samples": file.dataRows
+        };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(summaryData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Submissions Summary");
+
+    XLSX.writeFile(wb, "submissions_summary.xlsx");
+}
+
 // --- RENDERING FUNCTIONS ---
 
 /**
@@ -787,6 +819,7 @@ function renderMergedData() {
     const viewContainer = document.getElementById('merged-data-view');
     const tableContainer = document.getElementById('merged-table-container');
     const downloadButton = document.getElementById('download-button');
+    const downloadSummaryButton = document.getElementById('download-summary-button');
     const summaryInfo = document.getElementById('summary-info');
     const columnDisplay = document.getElementById('current-column-display');
     
@@ -821,11 +854,13 @@ function renderMergedData() {
     if (!mergedPreviewData) {
         viewContainer.classList.add('hidden');
         downloadButton.disabled = true;
+        if (downloadSummaryButton) downloadSummaryButton.disabled = true;
         return;
     }
 
     viewContainer.classList.remove('hidden');
     downloadButton.disabled = false;
+    if (downloadSummaryButton) downloadSummaryButton.disabled = false;
 
     // --- FIX 1: Calculate the total uncapped sample count here (from file.dataRows) ---
     const totalUncappedSamples = files.reduce((sum, file) => {
@@ -928,6 +963,7 @@ function init() {
     const fileInput = document.getElementById('file-input');
     const dropArea = document.getElementById('drop-area');
     const downloadButton = document.getElementById('download-button');
+    const downloadSummaryButton = document.getElementById('download-summary-button');
     const columnSelect = document.getElementById('preview-column-select');
     const sheetSelect = document.getElementById('sheet-index-select'); // 🌟 NEW ELEMENT
 
@@ -937,8 +973,12 @@ function init() {
         e.target.value = ''; 
     });
 
-    // 2. Download Listener
+    // 2. Download Listeners
     downloadButton.addEventListener('click', downloadMerged);
+    
+    if (downloadSummaryButton) {
+        downloadSummaryButton.addEventListener('click', downloadSummary);
+    }
     
     // 3. Column Select Listener
     if (columnSelect) {
