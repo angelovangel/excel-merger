@@ -1,15 +1,15 @@
 // --- GLOBAL STATE ---
-let files = []; 
-let mergedPreviewData = null; 
-let downloadableDataAoA = []; 
-let downloadableHeader = []; 
+let files = [];
+let mergedPreviewData = null;
+let downloadableDataAoA = [];
+let downloadableHeader = [];
 
 // --- DYNAMIC PREVIEW STATE ---
-let previewColumnIndex = 9; // Default Column J (0-indexed)
+let previewColumnIndex = 0; // Default Column J (0-indexed)
 // Store the actual headers for the dropdown display
 let globalColumnHeaders = []; // Array of header strings ['A', 'B', 'C', ...] or ['ID', 'Value', 'Name', ...]
 // Store the sheet number to be used (Sheet 2, index 1)
-let globalSheetIndex = 1; //
+let globalSheetIndex = 0; //
 
 // --- CONSTANTS ---
 const ROWS = 8;
@@ -19,10 +19,10 @@ const rowLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
 // Tailwind classes for coloring the data cells (using opacity /15 for readability)
 const FILE_COLORS = [
-    'bg-blue-500/15',   
-    'bg-pink-500/15',  
-    'bg-teal-500/15', 
-    'bg-purple-500/15',  
+    'bg-blue-500/15',
+    'bg-pink-500/15',
+    'bg-teal-500/15',
+    'bg-purple-500/15',
     'bg-orange-500/15',
     'bg-lime-600/15',
     'bg-red-500/15',
@@ -130,10 +130,10 @@ function getPrecedingOccupiedIndices(fileIndex) {
         } else {
             // Check 2: Collision check against preceding files
             for (let j = 0; j < requiredLength; j++) {
-                 if (occupiedIndices.has(currentStart + j)) {
-                     isValid = false;
-                     break;
-                 }
+                if (occupiedIndices.has(currentStart + j)) {
+                    isValid = false;
+                    break;
+                }
             }
         }
 
@@ -144,8 +144,8 @@ function getPrecedingOccupiedIndices(fileIndex) {
             if (firstAvailableWell) {
                 // Check if a correction is actually happening
                 if (currentFile.startWell !== firstAvailableWell) {
-                     console.warn(`Collision or boundary violation detected for ${currentFile.name}. Auto-correcting Start Well from ${currentFile.startWell} to ${firstAvailableWell}. (File Index: ${fileIndex + 1})`);
-                     currentFile.startWell = firstAvailableWell; 
+                    console.warn(`Collision or boundary violation detected for ${currentFile.name}. Auto-correcting Start Well from ${currentFile.startWell} to ${firstAvailableWell}. (File Index: ${fileIndex + 1})`);
+                    currentFile.startWell = firstAvailableWell;
                 }
             } else {
                 // If no space is available, the startWell remains what it was, but the options will be disabled.
@@ -168,7 +168,7 @@ function findFirstAvailableWell(occupiedIndices, requiredLength) {
             if (occupiedIndices.has(checkIndex)) {
                 isAvailable = false;
                 // Optimization: skip past the well that caused the collision
-                start = checkIndex; 
+                start = checkIndex;
                 break;
             }
         }
@@ -187,12 +187,12 @@ function findFirstAvailableWell(occupiedIndices, requiredLength) {
  */
 function updateApp() {
     // 1. Render file list (runs collision/correction logic on startWell)
-    renderFileList(); 
-    
+    renderFileList();
+
     // 2. Merge data (MUST run after renderFileList)
     // This step calculates globalColumnHeaders and mergedPreviewData.
-    mergeData(); 
-    
+    mergeData();
+
     // 3. Render components that depend on merged data/headers
     renderColumnSelect(); // Now depends on globalColumnHeaders from mergeData
     renderMergedData();
@@ -237,8 +237,8 @@ function mergeData() {
     // --- Pass 2: Define Universal Header and Global Column Headers ---
     let firstFileSheetData = files[0].sheetData[currentSheetIndex]; // 🌟 MODIFIED
     if (!firstFileSheetData || firstFileSheetData.length === 0) {
-         console.error(`First file is missing Sheet ${currentSheetIndex + 1} data.`);
-         return;
+        console.error(`First file is missing Sheet ${currentSheetIndex + 1} data.`);
+        return;
     }
 
     let firstFileHeader = firstFileSheetData[0] || [];
@@ -247,18 +247,18 @@ function mergeData() {
     // Pad the header to the max width found across all files
     while (paddedHeader.length < maxOriginalColumns) {
         // If a file is narrower, we use an empty string as a placeholder header
-        paddedHeader.push(''); 
+        paddedHeader.push('');
     }
 
     // Set the downloadable header
-    downloadableHeader = ['Well', ...paddedHeader]; 
+    downloadableHeader = ['Well', ...paddedHeader];
     downloadableHeader.push('Source'); // The last column
 
     // Set the global column headers for the dropdown, falling back to column letter for empty headers
     // The displayName is the actual header or the column letter if blank.
     globalColumnHeaders = paddedHeader.map((header, index) => {
-         const headerString = String(header || '').trim();
-         return headerString !== '' ? headerString : getColumnName(index);
+        const headerString = String(header || '').trim();
+        return headerString !== '' ? headerString : getColumnName(index);
     });
 
     // Create a flat 1D grid (96 slots) initialized with empty placeholders
@@ -270,7 +270,7 @@ function mergeData() {
         const fileColor = FILE_COLORS[fileIndex % FILE_COLORS.length];
         const fileSheetData = file.sheetData[currentSheetIndex]; // 🌟 MODIFIED
 
-        if (!fileSheetData || fileSheetData.length <= 1) { 
+        if (!fileSheetData || fileSheetData.length <= 1) {
             return;
         }
 
@@ -291,7 +291,7 @@ function mergeData() {
                 values: paddedRowValues, // Store the padded row values
                 sourceColor: fileColor,
                 sourceName: file.name,
-                sequentialIndex: dataRowIndex 
+                sequentialIndex: dataRowIndex
             });
         });
 
@@ -324,7 +324,7 @@ function mergeData() {
 
 
     // --- 4. CONVERT 1D GRID TO 2D 8x12 GRID ---
-    
+
     // Define the current header name for display/error messages
     const currentHeader = globalColumnHeaders[previewColumnIndex] || getColumnName(previewColumnIndex);
     const currentSheetNameDisplay = files[0].sheetData[currentSheetIndex] ? `Sheet ${currentSheetIndex + 1}` : 'Selected Sheet'; // Fallback display name
@@ -332,30 +332,30 @@ function mergeData() {
     const totalPopulatedCells = finalGrid1D.filter(cell => cell.value !== '').length;
 
     if (files.length > 0 && totalPopulatedCells === 0) {
-         // Check if the selected column index itself is out of range for ALL files
-         let isColumnOutOfRange = true;
-         files.forEach(file => {
-             const fileSheetData = file.sheetData[currentSheetIndex]; // 🌟 MODIFIED
-             if (fileSheetData && fileSheetData.length > 0 && fileSheetData[0].length > previewColumnIndex) {
-                 isColumnOutOfRange = false;
-             }
-         });
-         
-         // Use the display name from the logic in renderMergedData
-         const letterName = getColumnName(previewColumnIndex);
-         const displayHeaderName = currentHeader === letterName ? `Column ${currentHeader}` : `${currentHeader} (${letterName})`;
+        // Check if the selected column index itself is out of range for ALL files
+        let isColumnOutOfRange = true;
+        files.forEach(file => {
+            const fileSheetData = file.sheetData[currentSheetIndex]; // 🌟 MODIFIED
+            if (fileSheetData && fileSheetData.length > 0 && fileSheetData[0].length > previewColumnIndex) {
+                isColumnOutOfRange = false;
+            }
+        });
 
-         // 🌟 MODIFIED ERROR MESSAGE to include the current sheet
-         if (isColumnOutOfRange) {
-             mergedPreviewData = [[`Selected ${displayHeaderName} is out of range for all files in ${currentSheetNameDisplay}.`]];
-         } else {
-             mergedPreviewData = [[`No data found in ${displayHeaderName} (${currentSheetNameDisplay}) after processing.`]];
-         }
-         
-         return;
+        // Use the display name from the logic in renderMergedData
+        const letterName = getColumnName(previewColumnIndex);
+        const displayHeaderName = currentHeader === letterName ? `Column ${currentHeader}` : `${currentHeader} (${letterName})`;
+
+        // 🌟 MODIFIED ERROR MESSAGE to include the current sheet
+        if (isColumnOutOfRange) {
+            mergedPreviewData = [[`Selected ${displayHeaderName} is out of range for all files in ${currentSheetNameDisplay}.`]];
+        } else {
+            mergedPreviewData = [[`No data found in ${displayHeaderName} (${currentSheetNameDisplay}) after processing.`]];
+        }
+
+        return;
     } else if (files.length === 0) {
-         mergedPreviewData = null;
-         return;
+        mergedPreviewData = null;
+        return;
     }
 
     const gridData = [];
@@ -373,6 +373,18 @@ function mergeData() {
 // --- FILE HANDLERS ---
 
 /**
+ * Normalizes a header array by trimming whitespace and trailing empty columns.
+ */
+function getNormalizedHeaderString(headerArray) {
+    if (!headerArray || !Array.isArray(headerArray)) return "[]";
+    let arr = headerArray.map(h => String(h || '').trim());
+    while (arr.length > 0 && arr[arr.length - 1] === '') {
+        arr.pop();
+    }
+    return JSON.stringify(arr);
+}
+
+/**
  * Processes uploaded files using the XLSX library.
  */
 async function handleFileUpload(fileList) {
@@ -388,7 +400,7 @@ async function handleFileUpload(fileList) {
         uploadedFiles.map(async (file) => {
             try {
                 const data = await file.arrayBuffer();
-                const workbook = XLSX.read(data);
+                const workbook = XLSX.read(data, { type: 'array' });
 
                 const sheetData = [];
 
@@ -408,7 +420,7 @@ async function handleFileUpload(fileList) {
                 const filteredRowsCount = filteredDataRows.length;
 
                 // previewCellCount is the number of non-empty non-header rows, capped at 96
-                const previewCellCount = Math.min(filteredRowsCount, GRID_SIZE); 
+                const previewCellCount = Math.min(filteredRowsCount, GRID_SIZE);
 
                 return {
                     id: Math.random().toString(36).substr(2, 9),
@@ -426,7 +438,31 @@ async function handleFileUpload(fileList) {
         })
     );
 
-    const successfulFiles = processedFiles.filter(f => f !== null);
+    const validProcessedFiles = processedFiles.filter(f => f !== null);
+
+    let referenceHeaderJSON = null;
+    if (files.length > 0) {
+        const refData = files[0].sheetData[globalSheetIndex];
+        const refHeader = (refData && refData.length > 0) ? refData[0] : [];
+        referenceHeaderJSON = getNormalizedHeaderString(refHeader);
+    }
+
+    const successfulFiles = [];
+    for (const f of validProcessedFiles) {
+        const fData = f.sheetData[currentSheetIndex];
+        const fHeader = (fData && fData.length > 0) ? fData[0] : [];
+        const fHeaderJSON = getNormalizedHeaderString(fHeader);
+
+        if (referenceHeaderJSON === null) {
+            referenceHeaderJSON = fHeaderJSON;
+            successfulFiles.push(f);
+        } else if (fHeaderJSON !== referenceHeaderJSON) {
+            alert(`⚠️ Warning: The columns in file "${f.name}" do not match the expected columns. The file will not be loaded.`);
+        } else {
+            successfulFiles.push(f);
+        }
+    }
+
     files = [...files, ...successfulFiles];
 
     updateApp();
@@ -438,7 +474,7 @@ async function handleFileUpload(fileList) {
 function handleWellChange(fileId, newWell) {
     const fileIndex = files.findIndex(f => f.id === fileId);
     if (fileIndex > -1) {
-        files[fileIndex].startWell = newWell; 
+        files[fileIndex].startWell = newWell;
         updateApp();
     }
 }
@@ -475,9 +511,6 @@ function removeFile(id) {
 }
 
 /**
- * Downloads the full concatenated data (ALL columns from the SELECTED sheet).
- */
-/**
  * Downloads the full concatenated data (ALL columns from the SELECTED sheet),
  * now removing columns that are completely empty across all 96 wells.
  */
@@ -485,17 +518,17 @@ function downloadMerged() {
     if (typeof XLSX === 'undefined' || !XLSX || files.length === 0) return;
 
     // The number of original data columns (N columns, excluding Well and Source File)
-    const originalDataColumnCount = downloadableHeader.length - 2; 
+    const originalDataColumnCount = downloadableHeader.length - 2;
 
     // 1. Initialize the 96-well final grid with all WELL POSITIONS (size N+2)
     const final96WellGrid = ALL_WELLS.map(well => {
         const emptyRow = new Array(downloadableHeader.length).fill('');
-        emptyRow[0] = well; 
+        emptyRow[0] = well;
         return emptyRow;
     });
 
     // 2. Start the final output array with the header, followed by the 96 empty well rows
-    const finalAoA = [downloadableHeader, ...final96WellGrid]; 
+    const finalAoA = [downloadableHeader, ...final96WellGrid];
 
     // 3. Populate the grid with merged data by overwriting the empty rows
     downloadableDataAoA.forEach(rowObj => {
@@ -503,15 +536,15 @@ function downloadMerged() {
 
         if (sourceFile) {
             const start1DIndex = wellTo1DIndex(sourceFile.startWell);
-            const final1DIndex = start1DIndex + rowObj.sequentialIndex; 
+            const final1DIndex = start1DIndex + rowObj.sequentialIndex;
 
             if (final1DIndex >= 0 && final1DIndex < GRID_SIZE) {
 
-                const targetIndexInAoA = final1DIndex + 1; 
+                const targetIndexInAoA = final1DIndex + 1;
 
                 // Data portion of the row: [Padded Original Values..., Source File Name] (N+1 columns)
                 const finalDataRowValues = [...rowObj.values];
-                finalDataRowValues.push(rowObj.sourceName); 
+                finalDataRowValues.push(rowObj.sourceName);
 
                 // Overwrite the values in the final AoA row (starting at index 1)
                 finalAoA[targetIndexInAoA].splice(1, originalDataColumnCount + 1, ...finalDataRowValues);
@@ -520,7 +553,7 @@ function downloadMerged() {
     });
 
     // --- NEW LOGIC TO REMOVE EMPTY COLUMNS ACROSS ALL 96 WELLS ---
-    
+
     // Tracks which of the *original* data columns (indices 1 to originalDataColumnCount) are NOT empty
     const nonTrivialOriginalColumns = new Array(originalDataColumnCount).fill(false);
 
@@ -537,32 +570,32 @@ function downloadMerged() {
 
     // 1. Initialize the final output array (will contain only non-empty columns)
     const finalAoAFiltered = [];
-    
+
     // 2. Filter the Header (index 0)
     const originalHeader = finalAoA[0];
     const filteredHeader = [originalHeader[0]]; // 'Well Position'
-    
+
     for (let j = 0; j < originalDataColumnCount; j++) {
         if (nonTrivialOriginalColumns[j]) {
             filteredHeader.push(originalHeader[j + 1]); // Add non-empty column header
         }
     }
     filteredHeader.push(originalHeader[originalDataColumnCount + 1]); // 'Source File'
-    
+
     finalAoAFiltered.push(filteredHeader);
 
     // 3. Filter the Data Rows (index 1 to 96)
     for (let i = 1; i < finalAoA.length; i++) {
         const row = finalAoA[i];
         const filteredRow = [row[0]]; // Well Position
-        
+
         for (let j = 0; j < originalDataColumnCount; j++) {
             if (nonTrivialOriginalColumns[j]) {
                 filteredRow.push(row[j + 1]); // Add data from non-empty column
             }
         }
         filteredRow.push(row[originalDataColumnCount + 1]); // Source File
-        
+
         finalAoAFiltered.push(filteredRow);
     }
     // --- END NEW LOGIC ---
@@ -570,7 +603,7 @@ function downloadMerged() {
     // 4. Create a worksheet from the Array of Arrays
     const ws = XLSX.utils.aoa_to_sheet(finalAoAFiltered); // Use the FILTERED array
     const wb = XLSX.utils.book_new();
-    
+
     // 
     const sheetNum = globalSheetIndex + 1;
     XLSX.utils.book_append_sheet(wb, ws, `Sheet${sheetNum}_Concatenated`);
@@ -588,16 +621,16 @@ function downloadSummary() {
     const summaryData = files.map(file => {
         const sheetData = file.sheetData[globalSheetIndex];
         let username = "Unknown";
-        
+
         if (sheetData && sheetData.length > 0) {
             const header = sheetData[0];
             const usernameColIndex = header.findIndex(h => String(h || '').toLowerCase() === 'username');
-            
+
             if (usernameColIndex !== -1 && sheetData.length > 1) {
                 username = sheetData[1][usernameColIndex] || "Unknown";
             }
         }
-        
+
         return {
             "user": username,
             "number of samples": file.dataRows
@@ -634,26 +667,26 @@ function getColumnName(index) {
 function generateColumnOptions(headers) {
     const options = [];
     // Cap at 50 columns to keep the dropdown manageable
-    const maxIndex = Math.min(headers.length, 50); 
-    
+    const maxIndex = Math.min(headers.length, 50);
+
     for (let i = 0; i < maxIndex; i++) {
         const header = headers[i];
         const letterName = getColumnName(i);
         const selected = i === previewColumnIndex ? 'selected' : '';
-        
+
         let displayName = header;
         // Truncate long headers
         if (header.length > 30) {
-             displayName = `${header.substring(0, 27)}...`;
+            displayName = `${header.substring(0, 27)}...`;
         }
 
         // Check if the header is an Excel column letter (meaning it's a fallback)
         let isFallback = header === letterName;
 
-        const optionText = isFallback 
+        const optionText = isFallback
             ? `Column ${header}` // e.g., Column J
             : `${displayName} (${letterName})`; // e.g., Concentration (B)
-        
+
         options.push(`<option value="${i}" ${selected}>${optionText}</option>`);
     }
     return options.join('');
@@ -672,30 +705,30 @@ function renderColumnSelect() {
 
     if (files.length > 0 && globalColumnHeaders.length > 0) {
         // Use the headers calculated in mergeData
-        headers = globalColumnHeaders; 
+        headers = globalColumnHeaders;
     } else {
         // No files uploaded or files are empty, use A-Z column letters as placeholders
         for (let i = 0; i < maxColumns; i++) {
             headers.push(getColumnName(i));
         }
     }
-    
+
     // Generate options using the determined headers
-    selectElement.innerHTML = generateColumnOptions(headers); 
+    selectElement.innerHTML = generateColumnOptions(headers);
 
     // Ensure the currently selected value is correct if the index is out of bounds of the new headers
     if (previewColumnIndex >= headers.length && headers.length > 0) {
-         previewColumnIndex = 0; // Reset to A1 if column is now out of range
-         selectElement.value = "0";
+        previewColumnIndex = 0; // Reset to A1 if column is now out of range
+        selectElement.value = "0";
     } else {
-         selectElement.value = String(previewColumnIndex);
+        selectElement.value = String(previewColumnIndex);
     }
 }
 
 
 function renderFileItem(file, index) {
     const item = document.createElement('div');
-    item.id = `file-item-${file.id}`; 
+    item.id = `file-item-${file.id}`;
     item.className = 'file-item flex flex-col md:flex-row items-start md:items-center justify-between bg-gray-50 p-3 rounded-xl shadow-sm border border-gray-100 transition-all duration-150 ease-in-out hover:bg-gray-100 hover:shadow-md space-y-2 md:space-y-0';
 
     const fileColor = FILE_COLORS[index % FILE_COLORS.length].replace('/70', '');
@@ -703,7 +736,7 @@ function renderFileItem(file, index) {
     // --- COLLISION CHECK AND DROPDOWN GENERATION ---
 
     // 1. Get the wells already occupied by files BEFORE this one.
-    const occupiedIndices = getPrecedingOccupiedIndices(index); 
+    const occupiedIndices = getPrecedingOccupiedIndices(index);
 
     const requiredLength = file.previewCellCount;
 
@@ -716,12 +749,12 @@ function renderFileItem(file, index) {
         if (occupiedIndices.has(wellIndex)) {
             isDisabled = true;
             title = 'Occupied by a preceding file.';
-        } 
+        }
         // Check if the required length exceeds the grid boundary from this start position
         else if (wellIndex + requiredLength > GRID_SIZE) {
             isDisabled = true;
             title = 'Not enough space remaining for this file.';
-        } 
+        }
         // Check if any of the required cells (from start to start + length) are occupied by a previous file
         else {
             for (let j = 0; j < requiredLength; j++) {
@@ -745,11 +778,11 @@ function renderFileItem(file, index) {
     }).join('');
 
 
-    // Update display to show the selected sheet name
-    const sheetNameDisplay = file.sheetData[globalSheetIndex] 
+    // 🌟 MODIFIED: Update display to show the selected sheet name
+    const sheetNameDisplay = file.sheetData[globalSheetIndex]
         ? file.sheetData[globalSheetIndex][0] ? `Sheet ${globalSheetIndex + 1}` : file.sheetName // Use extracted sheet name or fallback
         : `Sheet ${globalSheetIndex + 1} (Missing)`;
-    
+
     item.innerHTML = `
         <div class="flex items-center gap-3 flex-1 min-w-0 w-full">
             <div class="w-2.5 h-2.5 rounded-full ${fileColor} shadow-md flex-shrink-0"></div> 
@@ -822,11 +855,11 @@ function renderMergedData() {
     const downloadSummaryButton = document.getElementById('download-summary-button');
     const summaryInfo = document.getElementById('summary-info');
     const columnDisplay = document.getElementById('current-column-display');
-    
+
     // --- Determine current column display name and sheet name ---
     const currentHeader = globalColumnHeaders[previewColumnIndex] || getColumnName(previewColumnIndex);
     const letterName = getColumnName(previewColumnIndex);
-    
+
     let displayHeaderName;
     // If the header is just a column letter, display "Column J", otherwise "Concentration (J)"
     if (currentHeader === letterName) {
@@ -834,21 +867,21 @@ function renderMergedData() {
     } else {
         displayHeaderName = `${currentHeader} (${letterName})`;
     }
-    
+
     // 🌟 NEW: Get sheet name for display
     const currentSheetIndex = globalSheetIndex;
     let sheetDisplayName = `Sheet ${currentSheetIndex + 1}`;
     if (files.length > 0 && files[0].sheetData[currentSheetIndex]) {
-         // Try to get the sheet name from the first file's stored data
-         const workbookSheetName = files[0].sheetData[currentSheetIndex].sheetName; 
-         if (workbookSheetName && workbookSheetName.toLowerCase() !== sheetDisplayName.toLowerCase()) {
-              sheetDisplayName = workbookSheetName;
-         }
+        // Try to get the sheet name from the first file's stored data
+        const workbookSheetName = files[0].sheetData[currentSheetIndex].sheetName;
+        if (workbookSheetName && workbookSheetName.toLowerCase() !== sheetDisplayName.toLowerCase()) {
+            sheetDisplayName = workbookSheetName;
+        }
     }
-    
+
 
     if (columnDisplay) {
-         columnDisplay.textContent = displayHeaderName;
+        columnDisplay.textContent = displayHeaderName;
     }
 
     if (!mergedPreviewData) {
@@ -873,7 +906,7 @@ function renderMergedData() {
     const totalPopulatedPreviewCells = mergedPreviewData.reduce((sum, row) => sum + row.filter(cell => cell.value !== undefined && cell.value !== '').length, 0);
 
     // -------------------------------------------------------------------
-    
+
     // -------------------------------------------------------------------
     if (totalUncappedSamples > GRID_SIZE) { // GRID_SIZE is 96
         const overflow = totalUncappedSamples - GRID_SIZE;
@@ -881,8 +914,8 @@ function renderMergedData() {
         alert(`⚠️ Warning: Total number of samples across all files in ${sheetDisplayName} is ${totalUncappedSamples}. Only the first 96 samples will be displayed/included in the final 96-well grid.`);
     }
     // -------------------------------------------------------------------
-    
-    // Update summary info to show both uncapped and preview totals ---
+
+    // --- FIX 2: Update summary info to show both uncapped and preview totals ---
     summaryInfo.innerHTML = `
         Total samples: <span class="font-semibold text-green-900">${totalPopulatedPreviewCells}</span> | 
         Previewing <span class="font-semibold text-green-900">${displayHeaderName}</span> from <span class="font-semibold text-green-900">${sheetDisplayName}</span>
@@ -906,7 +939,7 @@ function renderMergedData() {
 
     // Check if it's the simple 'No data found' message
     if (mergedPreviewData.length === 1 && typeof mergedPreviewData[0][0] === 'string') {
-         tableHTML += `
+        tableHTML += `
              <tr>
                  <td colspan="${COLS + 1}" class="px-4 py-6 text-center text-base text-red-500 bg-red-50 font-semibold">
                      ${mergedPreviewData[0][0]}
@@ -922,15 +955,15 @@ function renderMergedData() {
                         ${rowLabels[i]}
                     </td>
                     ${row.map((cellObj, j) => {
-                        const cellValue = cellObj.value || '';
-                        const cellColorClass = cellObj.sourceColor || ''; // Apply the color class with opacity
+                const cellValue = cellObj.value || '';
+                const cellColorClass = cellObj.sourceColor || ''; // Apply the color class with opacity
 
-                        // 🌟 MODIFICATION START: Use data-well instead of title
-                        const index = j * ROWS + i; // Calculate the 1D index based on column-major order
-                        const wellPosition = indexToWell(index); // Convert to well coordinate (e.g., 'C4')
-                        // 🌟 MODIFICATION END
+                // 🌟 MODIFICATION START: Use data-well instead of title
+                const index = j * ROWS + i; // Calculate the 1D index based on column-major order
+                const wellPosition = indexToWell(index); // Convert to well coordinate (e.g., 'C4')
+                // 🌟 MODIFICATION END
 
-                        return `
+                return `
                             <td 
                                 class="px-2 py-2 text-xs text-gray-700 text-center border-r border-gray-100 last:border-r-0 ${cellColorClass}"
                                 data-well="${wellPosition}:${cellValue}" // 🌟 ADDED data-well ATTRIBUTE
@@ -939,7 +972,7 @@ function renderMergedData() {
                                 ${cellValue}
                             </td>
                         `;
-                    }).join('')}
+            }).join('')}
                 </tr>
             `;
         });
@@ -970,16 +1003,12 @@ function init() {
     // 1. File Input Listener
     fileInput.addEventListener('change', (e) => {
         handleFileUpload(e.target.files);
-        e.target.value = ''; 
+        e.target.value = '';
     });
 
     // 2. Download Listeners
     downloadButton.addEventListener('click', downloadMerged);
-    
-    if (downloadSummaryButton) {
-        downloadSummaryButton.addEventListener('click', downloadSummary);
-    }
-    
+
     // 3. Column Select Listener
     if (columnSelect) {
         columnSelect.addEventListener('change', (e) => {
@@ -996,7 +1025,7 @@ function init() {
 
     // 5. Drop Area Listeners
     dropArea.addEventListener('dragover', (e) => {
-        e.preventDefault(); 
+        e.preventDefault();
         dropArea.classList.add('drag-over-target');
     });
 
@@ -1017,7 +1046,7 @@ function init() {
     document.body.addEventListener('drop', (e) => e.preventDefault());
 
     // Initial render of the column select (will show A-Z)
-    renderColumnSelect(); 
+    renderColumnSelect();
     updateApp(); // Also calls renderColumnSelect/renderMergedData
 }
 
