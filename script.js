@@ -571,11 +571,27 @@ function downloadMerged() {
     // 1. Initialize the final output array (will contain only non-empty columns)
     const finalAoAFiltered = [];
 
+    // Define column order: prioritize 3, 4, 6, then the rest
+    const prioritizedColumnIndices = [3, 4, 6];
+    const orderedColumnIndices = [];
+    
+    prioritizedColumnIndices.forEach(idx => {
+        if (idx < originalDataColumnCount) {
+            orderedColumnIndices.push(idx);
+        }
+    });
+    
+    for (let j = 0; j < originalDataColumnCount; j++) {
+        if (!prioritizedColumnIndices.includes(j)) {
+            orderedColumnIndices.push(j);
+        }
+    }
+
     // 2. Filter the Header (index 0)
     const originalHeader = finalAoA[0];
     const filteredHeader = [originalHeader[0]]; // 'Well Position'
 
-    for (let j = 0; j < originalDataColumnCount; j++) {
+    for (let j of orderedColumnIndices) {
         if (nonTrivialOriginalColumns[j]) {
             filteredHeader.push(originalHeader[j + 1]); // Add non-empty column header
         }
@@ -589,7 +605,7 @@ function downloadMerged() {
         const row = finalAoA[i];
         const filteredRow = [row[0]]; // Well Position
 
-        for (let j = 0; j < originalDataColumnCount; j++) {
+        for (let j of orderedColumnIndices) {
             if (nonTrivialOriginalColumns[j]) {
                 filteredRow.push(row[j + 1]); // Add data from non-empty column
             }
@@ -607,6 +623,30 @@ function downloadMerged() {
     // 
     const sheetNum = globalSheetIndex + 1;
     XLSX.utils.book_append_sheet(wb, ws, `Sheet${sheetNum}_Concatenated`);
+
+    // --- SUMMARY SHEET ---
+    const summaryCounts = {};
+    for (let i = 1; i < finalAoA.length; i++) {
+        const row = finalAoA[i];
+        const sourceFile = row[originalDataColumnCount + 1];
+        if (sourceFile && String(sourceFile).trim() !== '') {
+            const val = String(row[previewColumnIndex + 1] || '').trim();
+            const displayVal = val === '' ? '(Empty)' : val;
+            summaryCounts[displayVal] = (summaryCounts[displayVal] || 0) + 1;
+        }
+    }
+
+    const previewHeaderName = globalColumnHeaders[previewColumnIndex] || getColumnName(previewColumnIndex);
+    const summaryAoA = [
+        [previewHeaderName, "Count"]
+    ];
+
+    for (const [key, count] of Object.entries(summaryCounts)) {
+        summaryAoA.push([key, count]);
+    }
+
+    const wsSummary = XLSX.utils.aoa_to_sheet(summaryAoA);
+    XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
 
     // 5. Write and download the file
     XLSX.writeFile(wb, `sheet${sheetNum}_plate_data.xlsx`);
