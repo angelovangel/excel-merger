@@ -93,6 +93,14 @@
                                 </svg>
                                 Download combined data
                             </button>
+                            <button id="sync-google-button"
+                                class="flex items-center gap-2 bg-indigo-600 text-white px-4 py-1 rounded-xl shadow-lg hover:bg-indigo-700 transition-all font-semibold text-sm"
+                                disabled title="Send individual submission rows to Google Sheets">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-indigo-200">
+                                    <path d="M7 10v4h10v-4H7Z"></path><path d="M7 6v12"></path><path d="M17 6v12"></path>
+                                </svg>
+                                Sync to Google Sheets
+                            </button>
                         </div>
 
                         <div id="summary-info"
@@ -106,6 +114,57 @@
                     </div>
                 </div>
 
+            </div>
+        </div>
+
+        <!-- Google Sheets Sync Modal -->
+        <div id="sync-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <div class="p-6 border-b bg-indigo-50 flex justify-between items-center border-indigo-100">
+                    <div>
+                        <h2 class="text-xl font-bold text-indigo-900 leading-tight">Sync to Google Sheets</h2>
+                        <p class="text-xs text-indigo-600 font-medium">Map columns and send submissions</p>
+                    </div>
+                    <button id="close-modal" class="text-indigo-400 hover:text-indigo-600 transition-colors p-2 hover:bg-indigo-100 rounded-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+                    </button>
+                </div>
+                
+                <div class="p-6 overflow-y-auto space-y-6">
+                    <!-- GAS URL Input -->
+                    <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                        <label for="gas-url" class="block text-sm font-semibold text-indigo-900 mb-2">Google Apps Script Web App URL</label>
+                        <input type="text" id="gas-url" placeholder="https://script.google.com/macros/s/.../exec" 
+                            class="w-full px-4 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm">
+                        <p class="mt-2 text-xs text-indigo-500 italic">Deploy your script as a Web App with access set to "Anyone". This URL will be saved locally.</p>
+                    </div>
+
+                    <!-- Submission Column Mapping -->
+                    <div id="mapping-container" class="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                        <label for="submission-column-select" class="block text-sm font-semibold text-indigo-900 mb-2 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-500"><path d="M7 10v4h10v-4H7Z"></path><path d="M7 6v12"></path><path d="M17 6v12"></path></svg>
+                            Submission Column (Excel)
+                        </label>
+                        <select id="submission-column-select" class="w-full px-4 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white shadow-sm transition-all">
+                            <!-- Options will be dynamically inserted here -->
+                            <option value="-1">Loading columns...</option>
+                        </select>
+                        <p class="mt-2 text-xs text-indigo-500 italic">Select the Excel column that should fill the "Submission" field in Google Sheets. Other fields are filled automatically.</p>
+                    </div>
+                </div>
+
+                <div class="p-6 border-t bg-gray-50 flex justify-between items-center border-gray-200">
+                    <p id="sync-status" class="text-xs font-medium"></p>
+                    <div class="flex gap-3">
+                        <button id="cancel-sync" class="px-6 py-2 text-gray-600 font-semibold hover:bg-gray-200 rounded-xl transition-all">
+                            Cancel
+                        </button>
+                        <button id="start-sync" class="bg-indigo-600 text-white px-8 py-2 rounded-xl shadow-lg hover:bg-indigo-700 transition-all font-bold flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span id="sync-btn-text">Send Submissions</span>
+                            <div id="sync-spinner" class="hidden animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 

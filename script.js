@@ -12,6 +12,16 @@ let globalColumnHeaders = []; // Array of header strings ['A', 'B', 'C', ...] or
 // Store the sheet number to be used (Sheet 2, index 1)
 let globalSheetIndex = 0; //
 
+// --- GOOGLE SHEETS SYNC STATE ---
+const GOOGLE_SHEET_HEADERS = [
+    "Key", "Submission", "Submission date", "User", "PocketID", 
+    "Number of samples", "Number of samples pass QC", "Number of amp", 
+    "Total price", "Nextcloud", "Email sent", "Charged", 
+    "Submission for", "Run", "Status", "Emails count", 
+    "Lab entry", "Data release", "Comment"
+];
+let gasUrl = localStorage.getItem('gas-url') || '';
+
 // --- CONSTANTS ---
 const ROWS = 8;
 const COLS = 12;
@@ -740,6 +750,191 @@ function downloadSummary() {
     XLSX.writeFile(wb, "submissions_summary.xlsx");
 }
 
+// --- GOOGLE SHEETS SYNC LOGIC ---
+
+/**
+ * Generates a random 8-character hex key.
+ */
+function generateRandomKey() {
+    return Math.random().toString(16).substr(2, 8);
+}
+
+/**
+ * Persists GAS settings to localStorage.
+ */
+function saveGasSettings() {
+    const urlInput = document.getElementById('gas-url');
+    if (urlInput) {
+        gasUrl = urlInput.value.trim();
+        localStorage.setItem('gas-url', gasUrl);
+    }
+}
+
+/**
+ * Opens the mapping modal and initializes data.
+ */
+function showMappingModal() {
+    const modal = document.getElementById('sync-modal');
+    const urlInput = document.getElementById('gas-url');
+
+    if (!modal || files.length === 0) return;
+
+    // Load saved URL
+    if (urlInput) urlInput.value = gasUrl;
+
+    renderSubmissionMappingDropdown();
+    modal.classList.remove('hidden');
+}
+
+/**
+ * Closes the mapping modal.
+ */
+function closeMappingModal() {
+    const modal = document.getElementById('sync-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+/**
+ * Renders only the Submission column mapping dropdown.
+ */
+function renderSubmissionMappingDropdown() {
+    const dropdown = document.getElementById('submission-column-select');
+    if (!dropdown || files.length === 0) return;
+
+    const excelHeaders = globalColumnHeaders;
+    
+    // Try to auto-map based on name "Submission"
+    let autoMappedIndex = -1;
+    excelHeaders.forEach((header, index) => {
+        if (header.toLowerCase().includes('submission')) {
+            autoMappedIndex = index;
+        }
+    });
+
+    let options = `<option value="-1">-- Select Column --</option>`;
+    excelHeaders.forEach((header, index) => {
+        const letter = getColumnName(index);
+        const selected = index === autoMappedIndex ? 'selected' : '';
+        options += `<option value="${index}" ${selected}>${header} (${letter})</option>`;
+    });
+
+    dropdown.innerHTML = options;
+}
+
+/**
+ * Prepares and sends all submissions to Google Sheets with automated defaults.
+ */
+async function sendSubmissionsToGoogle() {
+    saveGasSettings();
+    
+    if (!gasUrl) {
+        alert('Please provide a Google Apps Script Web App URL.');
+        return;
+    }
+
+    const subSelect = document.getElementById('submission-column-select');
+    const submissionColumnIndex = parseInt(subSelect.value, 10);
+    
+    if (submissionColumnIndex === -1) {
+        alert('Please select the Excel column for "Submission".');
+        return;
+    }
+
+    const startBtn = document.getElementById('start-sync');
+    const btnText = document.getElementById('sync-btn-text');
+    const spinner = document.getElementById('sync-spinner');
+    const statusText = document.getElementById('sync-status');
+
+    // UI Feedback: Loading
+    startBtn.disabled = true;
+    btnText.textContent = 'Syncing...';
+    spinner.classList.remove('hidden');
+    
+    let successCount = 0;
+    let errorCount = 0;
+    const now = new Date();
+    const todayFormatted = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()}`;
+
+    // Process each file as one submission
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        statusText.textContent = `Sending ${i + 1}/${files.length}: ${file.name}`;
+
+        // Get first non-empty data row (excluding header)
+        const sheetData = file.sheetData[globalSheetIndex];
+        if (!sheetData || sheetData.length <= 1) {
+            errorCount++;
+            continue;
+        }
+
+        const firstDataRow = sheetData.slice(1).find(row => !isRowEmpty(row));
+        if (!firstDataRow) {
+            errorCount++;
+            continue;
+        }
+
+        // Generate dynamic timestamp for Lab entry
+        const labEntryTimestamp = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+
+        // Extract Portal Username from Column D (index 3) to be looked up by GAS
+        const portalUsername = String(firstDataRow[3] || "").toLowerCase().trim();
+
+        // Prepare submission object following the 19-header structure
+        const rawSubmission = String(firstDataRow[submissionColumnIndex] || "");
+        const submission = {
+            "Key": generateRandomKey(),
+            "Submission": rawSubmission.slice(-5),
+            "Submission date": todayFormatted,
+            "portalUsername": portalUsername, // Sent for server-side ID lookup
+            "Number of samples": file.dataRows, // Total non-empty rows count
+            "Number of samples pass QC": file.dataRows,
+            "Email sent": "false",
+            "Charged": "false",
+            "Status": "New",
+            "Lab entry": labEntryTimestamp
+        };
+        
+        // Ensure all other headers are sent as empty strings
+        GOOGLE_SHEET_HEADERS.forEach(h => {
+            if (submission[h] === undefined) {
+                submission[h] = "";
+            }
+        });
+
+        try {
+            await fetch(gasUrl, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(submission)
+            });
+            successCount++;
+        } catch (error) {
+            console.error(`Error syncing ${file.name}:`, error);
+            errorCount++;
+        }
+    }
+
+    // Done
+    spinner.classList.add('hidden');
+    if (btnText) btnText.textContent = 'Send Submissions';
+    startBtn.disabled = false;
+
+    if (errorCount === 0) {
+        statusText.textContent = `Successfully synced all ${successCount} submissions!`;
+        statusText.className = 'text-xs font-medium text-green-600';
+    } else {
+        statusText.textContent = `Sync complete. Success: ${successCount}, Failed: ${errorCount}`;
+        statusText.className = 'text-xs font-medium text-orange-600';
+    }
+
+    setTimeout(() => {
+        if (successCount > 0 && errorCount === 0) {
+            closeMappingModal();
+        }
+    }, 1500);
+}
+
 // --- RENDERING FUNCTIONS ---
 
 /**
@@ -1013,6 +1208,11 @@ function renderMergedData() {
     viewContainer.classList.remove('hidden');
     downloadButton.disabled = false;
     if (downloadSummaryButton) downloadSummaryButton.disabled = false;
+    
+    const syncGoogleBtn = document.getElementById('sync-google-button');
+    if (syncGoogleBtn) {
+        syncGoogleBtn.disabled = files.length === 0;
+    }
 
     // --- FIX 1: Calculate the total uncapped sample count here (from file.dataRows) ---
     const totalUncappedSamples = files.reduce((sum, file) => {
@@ -1173,6 +1373,26 @@ function init() {
 
     // Initial render of the column select (will show A-Z)
     renderColumnSelect();
+
+    // --- GOOGLE SYNC LISTENERS ---
+    const syncBtn = document.getElementById('sync-google-button');
+    const closeModalBtn = document.getElementById('close-modal');
+    const cancelSyncBtn = document.getElementById('cancel-sync');
+    const startSyncBtn = document.getElementById('start-sync');
+
+    if (syncBtn) {
+        syncBtn.addEventListener('click', showMappingModal);
+    }
+    if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', closeMappingModal);
+    }
+    if (cancelSyncBtn) {
+        cancelSyncBtn.addEventListener('click', closeMappingModal);
+    }
+    if (startSyncBtn) {
+        startSyncBtn.addEventListener('click', sendSubmissionsToGoogle);
+    }
+
     updateApp(); // Also calls renderColumnSelect/renderMergedData
 }
 
