@@ -6,6 +6,7 @@ let downloadableHeader = [];
 
 // --- DYNAMIC PREVIEW STATE ---
 let previewColumnIndex = 0; // Default Column J (0-indexed)
+let previewColumnIndex2 = -1; // Default to None
 // Store the actual headers for the dropdown display
 let globalColumnHeaders = []; // Array of header strings ['A', 'B', 'C', ...] or ['ID', 'Value', 'Name', ...]
 // Store the sheet number to be used (Sheet 2, index 1)
@@ -301,7 +302,9 @@ function mergeData() {
             .map(row => {
                 // Take the value from the currently selected column index (or empty string if undefined/null)
                 // If the file is narrower than the selected column index, this will also be an empty string
-                const cellValue = row[previewColumnIndex] || '';
+                const cellValue1 = row[previewColumnIndex] || '';
+                const cellValue2 = previewColumnIndex2 !== -1 ? (row[previewColumnIndex2] || '') : '';
+                const cellValue = previewColumnIndex2 !== -1 ? `${cellValue1}-${cellValue2}` : cellValue1;
 
                 return {
                     value: cellValue,
@@ -492,6 +495,18 @@ function handleColumnChange(newIndex) {
 }
 
 /**
+ * Updates the second preview column index globally.
+ */
+function handleColumnChange2(newIndex) {
+    // Ensure the new index is a valid number
+    const newIndexNum = parseInt(newIndex, 10);
+    if (!isNaN(newIndexNum) && newIndexNum >= -1) {
+        previewColumnIndex2 = newIndexNum;
+        updateApp();
+    }
+}
+
+/**
  * Updates the preview sheet index globally.
  */
 function handleSheetIndexChange(newIndex) {
@@ -626,17 +641,58 @@ function downloadMerged() {
 
     // --- SUMMARY SHEET ---
     const summaryCounts = {};
+    
+    // Initialize summary counts with 0 for all possible grouping combinations (cross join)
+    const uniqueVal1 = new Set();
+    const uniqueVal2 = new Set();
+
+    files.forEach(file => {
+        const fileSheetData = file.sheetData[globalSheetIndex];
+        if (fileSheetData && fileSheetData.length > 1) {
+            const dataRows = fileSheetData.slice(1);
+            dataRows.forEach(row => {
+                if (!isRowEmpty(row)) {
+                    uniqueVal1.add(String(row[previewColumnIndex] || '').trim());
+                    if (previewColumnIndex2 !== -1) {
+                        uniqueVal2.add(String(row[previewColumnIndex2] || '').trim());
+                    }
+                }
+            });
+        }
+    });
+
+    if (previewColumnIndex2 !== -1) {
+        uniqueVal1.forEach(v1 => {
+            uniqueVal2.forEach(v2 => {
+                const combinedVal = `${v1}-${v2}`;
+                const displayVal = combinedVal === '-' ? '(Empty)' : combinedVal;
+                summaryCounts[displayVal] = 0;
+            });
+        });
+    } else {
+        uniqueVal1.forEach(v1 => {
+            const displayVal = v1 === '' ? '(Empty)' : v1;
+            summaryCounts[displayVal] = 0;
+        });
+    }
+
     for (let i = 1; i < finalAoA.length; i++) {
         const row = finalAoA[i];
         const sourceFile = row[originalDataColumnCount + 1];
         if (sourceFile && String(sourceFile).trim() !== '') {
-            const val = String(row[previewColumnIndex + 1] || '').trim();
-            const displayVal = val === '' ? '(Empty)' : val;
+            const val1 = String(row[previewColumnIndex + 1] || '').trim();
+            const val2 = previewColumnIndex2 !== -1 ? String(row[previewColumnIndex2 + 1] || '').trim() : '';
+            const combinedVal = previewColumnIndex2 !== -1 ? `${val1}-${val2}` : val1;
+            const displayVal = combinedVal === '' || combinedVal === '-' ? '(Empty)' : combinedVal;
             summaryCounts[displayVal] = (summaryCounts[displayVal] || 0) + 1;
         }
     }
 
-    const previewHeaderName = globalColumnHeaders[previewColumnIndex] || getColumnName(previewColumnIndex);
+    let previewHeaderName = globalColumnHeaders[previewColumnIndex] || getColumnName(previewColumnIndex);
+    if (previewColumnIndex2 !== -1) {
+        const previewHeaderName2 = globalColumnHeaders[previewColumnIndex2] || getColumnName(previewColumnIndex2);
+        previewHeaderName = `${previewHeaderName}-${previewHeaderName2}`;
+    }
     const summaryAoA = [
         [previewHeaderName, "Count"]
     ];
@@ -704,7 +760,7 @@ function getColumnName(index) {
  * Generates options for the column select dropdown.
  * @param {string[]} headers - Array of header strings (e.g., ['A', 'B', 'C'] or ['ID', 'Value']).
  */
-function generateColumnOptions(headers) {
+function generateColumnOptions(headers, selectedIndex) {
     const options = [];
     // Cap at 50 columns to keep the dropdown manageable
     const maxIndex = Math.min(headers.length, 50);
@@ -712,7 +768,7 @@ function generateColumnOptions(headers) {
     for (let i = 0; i < maxIndex; i++) {
         const header = headers[i];
         const letterName = getColumnName(i);
-        const selected = i === previewColumnIndex ? 'selected' : '';
+        const selected = i === selectedIndex ? 'selected' : '';
 
         let displayName = header;
         // Truncate long headers
@@ -738,6 +794,7 @@ function generateColumnOptions(headers) {
  */
 function renderColumnSelect() {
     const selectElement = document.getElementById('preview-column-select');
+    const selectElement2 = document.getElementById('preview-column-select-2');
     if (!selectElement) return;
 
     let headers = [];
@@ -754,7 +811,7 @@ function renderColumnSelect() {
     }
 
     // Generate options using the determined headers
-    selectElement.innerHTML = generateColumnOptions(headers);
+    selectElement.innerHTML = generateColumnOptions(headers, previewColumnIndex);
 
     // Ensure the currently selected value is correct if the index is out of bounds of the new headers
     if (previewColumnIndex >= headers.length && headers.length > 0) {
@@ -762,6 +819,16 @@ function renderColumnSelect() {
         selectElement.value = "0";
     } else {
         selectElement.value = String(previewColumnIndex);
+    }
+    
+    if (selectElement2) {
+        selectElement2.innerHTML = '<option value="-1">None</option>' + generateColumnOptions(headers, previewColumnIndex2);
+        if (previewColumnIndex2 >= headers.length && headers.length > 0) {
+            previewColumnIndex2 = -1; // Reset to None if column is out of range
+            selectElement2.value = "-1";
+        } else {
+            selectElement2.value = String(previewColumnIndex2);
+        }
     }
 }
 
@@ -908,6 +975,18 @@ function renderMergedData() {
         displayHeaderName = `${currentHeader} (${letterName})`;
     }
 
+    if (previewColumnIndex2 !== -1) {
+        const currentHeader2 = globalColumnHeaders[previewColumnIndex2] || getColumnName(previewColumnIndex2);
+        const letterName2 = getColumnName(previewColumnIndex2);
+        let displayHeaderName2;
+        if (currentHeader2 === letterName2) {
+            displayHeaderName2 = `Column ${currentHeader2}`;
+        } else {
+            displayHeaderName2 = `${currentHeader2} (${letterName2})`;
+        }
+        displayHeaderName += ` - ${displayHeaderName2}`;
+    }
+
     // 🌟 NEW: Get sheet name for display
     const currentSheetIndex = globalSheetIndex;
     let sheetDisplayName = `Sheet ${currentSheetIndex + 1}`;
@@ -1049,10 +1128,17 @@ function init() {
     // 2. Download Listeners
     downloadButton.addEventListener('click', downloadMerged);
 
+    const columnSelect2 = document.getElementById('preview-column-select-2');
+    
     // 3. Column Select Listener
     if (columnSelect) {
         columnSelect.addEventListener('change', (e) => {
             handleColumnChange(e.target.value);
+        });
+    }
+    if (columnSelect2) {
+        columnSelect2.addEventListener('change', (e) => {
+            handleColumnChange2(e.target.value);
         });
     }
 
