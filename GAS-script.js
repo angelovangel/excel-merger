@@ -46,7 +46,19 @@ function doPost(e) {
             return data[header] !== undefined ? data[header] : "";
         });
 
-        mainSheet.appendRow(newRow);
+        var lastRow = mainSheet.getLastRow() + 1;
+        var range = mainSheet.getRange(lastRow, 1, 1, newRow.length);
+
+
+        // 3. Selectively apply Plain Text (@) to ID columns
+        headers.forEach(function (header, i) {
+            if (header === "Key" || header === "Submission" || header === "User") {
+                mainSheet.getRange(lastRow, i + 1).setNumberFormat("@");
+            }
+        });
+
+        // 4. Set the values
+        range.setValues([newRow]);
         return ContentService.createTextOutput(JSON.stringify({ "status": "success", "userId": userId }))
             .setMimeType(ContentService.MimeType.JSON);
 
