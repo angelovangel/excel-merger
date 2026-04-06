@@ -4,7 +4,13 @@ function doPost(e) {
         var data = JSON.parse(e.postData.contents);
         var headers = mainSheet.getRange(1, 1, 1, mainSheet.getLastColumn()).getValues()[0];
 
-        // 1. User ID Lookup (Server-Side)
+        // 1. Map Column Names to their Indexes (0-based)
+        var colIndexMap = {};
+        headers.forEach(function (head, idx) {
+            if (head) colIndexMap[String(head).trim()] = idx;
+        });
+
+        // 2. User ID Lookup (Server-Side)
         var portalUsername = data["portalUsername"];
         var userId = "";
 
@@ -16,31 +22,40 @@ function doPost(e) {
                 }) || SpreadsheetApp.openById(lookupSpreadsheetId).getSheets()[0];
 
                 var lookupData = lookupSheet.getDataRange().getValues();
-                var usernameCol = -1;
-                var idCol = -1;
-
-                // Find columns in lookup sheet
                 var lookupHeaders = lookupData[0];
-                for (var i = 0; i < lookupHeaders.length; i++) {
-                    if (lookupHeaders[i].toString().toLowerCase() == "username") usernameCol = i;
-                    if (lookupHeaders[i].toString().toLowerCase() == "id") idCol = i;
-                }
+                var lookupColMap = {};
+                lookupHeaders.forEach(function (h, i) { lookupColMap[String(h).toLowerCase()] = i; });
 
-                if (usernameCol !== -1 && idCol !== -1) {
+                if (lookupColMap["username"] !== undefined && lookupColMap["id"] !== undefined) {
                     for (var j = 1; j < lookupData.length; j++) {
-                        if (lookupData[j][usernameCol].toString().toLowerCase() == portalUsername.toLowerCase()) {
-                            userId = lookupData[j][idCol];
+                        if (String(lookupData[j][lookupColMap["username"]]).toLowerCase() == portalUsername.toLowerCase()) {
+                            userId = lookupData[j][lookupColMap["id"]];
                             break;
                         }
                     }
                 }
             } catch (lookupErr) {
-                // Fallback or log if lookup sheet is inaccessible
                 userId = "Error: " + lookupErr.toString();
             }
         }
 
-        // 2. Prepare the row for the main submission sheet
+        // 3. Check for Existing Submissions
+        var submissionId = String(data["Submission"] || "").trim();
+        var subIdx = colIndexMap["Submission"];
+        if (submissionId && subIdx !== undefined && mainSheet.getLastRow() > 1) {
+            var existingIds = {};
+            var destData = mainSheet.getRange(2, subIdx + 1, mainSheet.getLastRow() - 1, 1).getValues();
+            for (var k = 0; k < destData.length; k++) {
+                existingIds[String(destData[k][0]).trim()] = true;
+            }
+            
+            if (existingIds[submissionId]) {
+                return ContentService.createTextOutput(JSON.stringify({ "status": "exists", "message": "Submission already exists", "userId": userId }))
+                    .setMimeType(ContentService.MimeType.JSON);
+            }
+        }
+
+        // 4. Prepare the row for the main submission sheet
         var newRow = headers.map(function (header) {
             if (header == "User") return userId;
             return data[header] !== undefined ? data[header] : "";
@@ -50,14 +65,20 @@ function doPost(e) {
         var range = mainSheet.getRange(lastRow, 1, 1, newRow.length);
 
 
-        // 3. Selectively apply Plain Text (@) to ID columns
+        // 5. Inherit format from the previous data row
+        if (lastRow > 2) {
+            var prevRange = mainSheet.getRange(lastRow - 1, 1, 1, newRow.length);
+            prevRange.copyTo(range, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+        }
+
+        // 6. Selectively apply Plain Text (@) to ID columns
         headers.forEach(function (header, i) {
             if (header === "Key" || header === "Submission" || header === "User") {
                 mainSheet.getRange(lastRow, i + 1).setNumberFormat("@");
             }
         });
 
-        // 4. Set the values
+        // 7. Set the values
         range.setValues([newRow]);
         return ContentService.createTextOutput(JSON.stringify({ "status": "success", "userId": userId }))
             .setMimeType(ContentService.MimeType.JSON);

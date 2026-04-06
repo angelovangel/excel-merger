@@ -14,10 +14,10 @@ let globalSheetIndex = 0; //
 
 // --- GOOGLE SHEETS SYNC STATE ---
 const GOOGLE_SHEET_HEADERS = [
-    "Key", "Submission", "Submission date", "User", "PocketID", 
-    "Number of samples", "Number of samples pass QC", "Number of amp", 
-    "Total price", "Nextcloud", "Email sent", "Charged", 
-    "Submission for", "Run", "Status", "Emails count", 
+    "Key", "Submission", "Submission date", "User", "PocketID",
+    "Number of samples", "Number of samples pass QC", "Number of amp",
+    "Total price", "Nextcloud", "Email sent", "Charged",
+    "Submission for", "Run", "Status", "Emails count",
     "Lab entry", "Data release", "Comment"
 ];
 let gasUrl = localStorage.getItem('gas-url') || '';
@@ -599,13 +599,13 @@ function downloadMerged() {
     // Define column order: prioritize 3, 4, 6, then the rest
     const prioritizedColumnIndices = [3, 4, 6];
     const orderedColumnIndices = [];
-    
+
     prioritizedColumnIndices.forEach(idx => {
         if (idx < originalDataColumnCount) {
             orderedColumnIndices.push(idx);
         }
     });
-    
+
     for (let j = 0; j < originalDataColumnCount; j++) {
         if (!prioritizedColumnIndices.includes(j)) {
             orderedColumnIndices.push(j);
@@ -651,7 +651,7 @@ function downloadMerged() {
 
     // --- SUMMARY SHEET ---
     const summaryCounts = {};
-    
+
     // Initialize summary counts with 0 for all possible grouping combinations (cross join)
     const uniqueVal1 = new Set();
     const uniqueVal2 = new Set();
@@ -770,6 +770,7 @@ function saveGasSettings() {
     }
 }
 
+
 /**
  * Opens the mapping modal and initializes data.
  */
@@ -802,7 +803,7 @@ function renderSubmissionMappingDropdown() {
     if (!dropdown || files.length === 0) return;
 
     const excelHeaders = globalColumnHeaders;
-    
+
     // Try to auto-map based on name "Submission"
     let autoMappedIndex = -1;
     excelHeaders.forEach((header, index) => {
@@ -826,7 +827,7 @@ function renderSubmissionMappingDropdown() {
  */
 async function sendSubmissionsToGoogle() {
     saveGasSettings();
-    
+
     if (!gasUrl) {
         alert('Please provide a Google Apps Script Web App URL.');
         return;
@@ -834,7 +835,7 @@ async function sendSubmissionsToGoogle() {
 
     const subSelect = document.getElementById('submission-column-select');
     const submissionColumnIndex = parseInt(subSelect.value, 10);
-    
+
     if (submissionColumnIndex === -1) {
         alert('Please select the Excel column for "Submission".');
         return;
@@ -849,7 +850,7 @@ async function sendSubmissionsToGoogle() {
     startBtn.disabled = true;
     btnText.textContent = 'Syncing...';
     spinner.classList.remove('hidden');
-    
+
     let successCount = 0;
     let errorCount = 0;
     const now = new Date();
@@ -888,12 +889,13 @@ async function sendSubmissionsToGoogle() {
             "portalUsername": portalUsername, // Sent for server-side ID lookup
             "Number of samples": file.dataRows, // Total non-empty rows count
             "Number of samples pass QC": file.dataRows,
+            "Number of amplicons": 0,
             "Email sent": "false",
             "Charged": "false",
             "Status": "New",
             "Lab entry": labEntryTimestamp
         };
-        
+
         // Ensure all other headers are sent as empty strings
         GOOGLE_SHEET_HEADERS.forEach(h => {
             if (submission[h] === undefined) {
@@ -932,7 +934,7 @@ async function sendSubmissionsToGoogle() {
         if (successCount > 0 && errorCount === 0) {
             closeMappingModal();
         }
-    }, 1500);
+    }, 1000);
 }
 
 // --- RENDERING FUNCTIONS ---
@@ -1015,7 +1017,7 @@ function renderColumnSelect() {
     } else {
         selectElement.value = String(previewColumnIndex);
     }
-    
+
     if (selectElement2) {
         selectElement2.innerHTML = '<option value="-1">None</option>' + generateColumnOptions(headers, previewColumnIndex2);
         if (previewColumnIndex2 >= headers.length && headers.length > 0) {
@@ -1208,7 +1210,7 @@ function renderMergedData() {
     viewContainer.classList.remove('hidden');
     downloadButton.disabled = false;
     if (downloadSummaryButton) downloadSummaryButton.disabled = false;
-    
+
     const syncGoogleBtn = document.getElementById('sync-google-button');
     if (syncGoogleBtn) {
         syncGoogleBtn.disabled = files.length === 0;
@@ -1312,6 +1314,7 @@ function renderMergedData() {
 // --- INITIALIZATION ---
 
 function init() {
+
     const fileInput = document.getElementById('file-input');
     const dropArea = document.getElementById('drop-area');
     const downloadButton = document.getElementById('download-button');
@@ -1329,7 +1332,7 @@ function init() {
     downloadButton.addEventListener('click', downloadMerged);
 
     const columnSelect2 = document.getElementById('preview-column-select-2');
-    
+
     // 3. Column Select Listener
     if (columnSelect) {
         columnSelect.addEventListener('change', (e) => {
