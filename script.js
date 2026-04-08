@@ -597,7 +597,7 @@ function downloadMerged() {
     const finalAoAFiltered = [];
 
     // Define column order: prioritize 3, 4, 6, then the rest
-    const prioritizedColumnIndices = [3, 4, 6];
+    const prioritizedColumnIndices = [3, 4, 5, 6];
     const orderedColumnIndices = [];
 
     prioritizedColumnIndices.forEach(idx => {
@@ -643,6 +643,27 @@ function downloadMerged() {
 
     // 4. Create a worksheet from the Array of Arrays
     const ws = XLSX.utils.aoa_to_sheet(finalAoAFiltered); // Use the FILTERED array
+
+    // Apply bold style to columns that are to be copied
+    const columnsToBold = [1, 2, 3, 4];
+    if (ws['!ref']) {
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+            for (let C of columnsToBold) {
+                if (C > range.e.c) continue; // Skip if index out of bounds
+                const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+                if (!ws[cellAddress]) {
+                    // Create cell if it doesn't exist to ensure the style is applied if there's no data
+                    ws[cellAddress] = { v: '', t: 's' };
+                }
+                ws[cellAddress].s = {
+                    font: {
+                        bold: true
+                    }
+                };
+            }
+        }
+    }
     const wb = XLSX.utils.book_new();
 
     // 
