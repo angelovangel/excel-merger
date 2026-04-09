@@ -21,6 +21,7 @@ const GOOGLE_SHEET_HEADERS = [
     "Lab entry", "Data release", "Comment"
 ];
 let gasUrl = localStorage.getItem('gas-url') || '';
+let shinyUrl = localStorage.getItem('shiny-url') || '';
 
 // --- CONSTANTS ---
 const ROWS = 8;
@@ -536,11 +537,12 @@ function removeFile(id) {
 }
 
 /**
- * Downloads the full concatenated data (ALL columns from the SELECTED sheet),
- * now removing columns that are completely empty across all 96 wells.
+ * Prepares the merged 96-well grid data as an Array of Arrays (AoA).
+ * This includes filtering out empty columns and prioritizing specific indices.
+ * @returns {any[][] | null} The filtered AoA data or null if no files.
  */
-function downloadMerged() {
-    if (typeof XLSX === 'undefined' || !XLSX || files.length === 0) return;
+function getMergedAoAData() {
+    if (files.length === 0) return null;
 
     // The number of original data columns (N columns, excluding Well and Source File)
     const originalDataColumnCount = downloadableHeader.length - 2;
@@ -564,7 +566,6 @@ function downloadMerged() {
             const final1DIndex = start1DIndex + rowObj.sequentialIndex;
 
             if (final1DIndex >= 0 && final1DIndex < GRID_SIZE) {
-
                 const targetIndexInAoA = final1DIndex + 1;
 
                 // Data portion of the row: [Padded Original Values..., Source File Name] (N+1 columns)
@@ -585,18 +586,14 @@ function downloadMerged() {
     // Check all 96 data rows (skip header at index 0)
     for (let i = 1; i < finalAoA.length; i++) {
         const row = finalAoA[i];
-        // Check only the original data columns (indices 1 to originalDataColumnCount)
         for (let j = 1; j <= originalDataColumnCount; j++) {
             if (row[j] !== undefined && row[j] !== null && String(row[j]).trim() !== '') {
-                nonTrivialOriginalColumns[j - 1] = true; // Mark as non-empty 
+                nonTrivialOriginalColumns[j - 1] = true;
             }
         }
     }
 
-    // 1. Initialize the final output array (will contain only non-empty columns)
     const finalAoAFiltered = [];
-
-    // Define column order: prioritize 3, 4, 6, then the rest
     const prioritizedColumnIndices = [3, 4, 5, 6];
     const orderedColumnIndices = [];
 
@@ -612,37 +609,43 @@ function downloadMerged() {
         }
     }
 
-    // 2. Filter the Header (index 0)
     const originalHeader = finalAoA[0];
     const filteredHeader = [originalHeader[0]]; // 'Well Position'
-
     for (let j of orderedColumnIndices) {
         if (nonTrivialOriginalColumns[j]) {
-            filteredHeader.push(originalHeader[j + 1]); // Add non-empty column header
+            filteredHeader.push(originalHeader[j + 1]);
         }
     }
     filteredHeader.push(originalHeader[originalDataColumnCount + 1]); // 'Source File'
-
     finalAoAFiltered.push(filteredHeader);
 
-    // 3. Filter the Data Rows (index 1 to 96)
     for (let i = 1; i < finalAoA.length; i++) {
         const row = finalAoA[i];
         const filteredRow = [row[0]]; // Well Position
-
         for (let j of orderedColumnIndices) {
             if (nonTrivialOriginalColumns[j]) {
-                filteredRow.push(row[j + 1]); // Add data from non-empty column
+                filteredRow.push(row[j + 1]);
             }
         }
         filteredRow.push(row[originalDataColumnCount + 1]); // Source File
-
         finalAoAFiltered.push(filteredRow);
     }
-    // --- END NEW LOGIC ---
+
+    return finalAoAFiltered;
+}
+
+/**
+ * Downloads the full concatenated data (ALL columns from the SELECTED sheet),
+ * now removing columns that are completely empty across all 96 wells.
+ */
+function downloadMerged() {
+    if (typeof XLSX === 'undefined' || !XLSX || files.length === 0) return;
+
+    const finalAoAFiltered = getMergedAoAData();
+    if (!finalAoAFiltered) return;
 
     // 4. Create a worksheet from the Array of Arrays
-    const ws = XLSX.utils.aoa_to_sheet(finalAoAFiltered); // Use the FILTERED array
+    const ws = XLSX.utils.aoa_to_sheet(finalAoAFiltered);
 
     // Apply bold style to columns that are to be copied
     const columnsToBold = [1, 2, 3, 4];
@@ -650,30 +653,22 @@ function downloadMerged() {
         const range = XLSX.utils.decode_range(ws['!ref']);
         for (let R = range.s.r + 1; R <= range.e.r; ++R) {
             for (let C of columnsToBold) {
-                if (C > range.e.c) continue; // Skip if index out of bounds
+                if (C > range.e.c) continue;
                 const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
                 if (!ws[cellAddress]) {
-                    // Create cell if it doesn't exist to ensure the style is applied if there's no data
                     ws[cellAddress] = { v: '', t: 's' };
                 }
-                ws[cellAddress].s = {
-                    font: {
-                        bold: true
-                    }
-                };
+                ws[cellAddress].s = { font: { bold: true } };
             }
         }
     }
-    const wb = XLSX.utils.book_new();
 
-    // 
+    const wb = XLSX.utils.book_new();
     const sheetNum = globalSheetIndex + 1;
     XLSX.utils.book_append_sheet(wb, ws, `Sheet${sheetNum}_Concatenated`);
 
     // --- SUMMARY SHEET ---
     const summaryCounts = {};
-
-    // Initialize summary counts with 0 for all possible grouping combinations (cross join)
     const uniqueVal1 = new Set();
     const uniqueVal2 = new Set();
 
@@ -707,11 +702,13 @@ function downloadMerged() {
         });
     }
 
-    for (let i = 1; i < finalAoA.length; i++) {
-        const row = finalAoA[i];
-        const sourceFile = row[originalDataColumnCount + 1];
+    // Use finalAoAFiltered for summary calculations as it contains the processed data
+    const originalDataColumnCount = downloadableHeader.length - 2;
+    for (let i = 1; i < finalAoAFiltered.length; i++) {
+        const row = finalAoAFiltered[i];
+        const sourceFile = row[row.length - 1]; // Source File is the last column in filtered AoA
         if (sourceFile && String(sourceFile).trim() !== '') {
-            const val1 = String(row[previewColumnIndex + 1] || '').trim();
+            const val1 = String(row[previewColumnIndex + 1] || '').trim(); // Approximating
             const val2 = previewColumnIndex2 !== -1 ? String(row[previewColumnIndex2 + 1] || '').trim() : '';
             const combinedVal = previewColumnIndex2 !== -1 ? `${val1}-${val2}` : val1;
             const displayVal = combinedVal === '' || combinedVal === '-' ? '(Empty)' : combinedVal;
@@ -791,9 +788,83 @@ function saveGasSettings() {
     }
 }
 
+/**
+ * Persists Shiny settings to localStorage.
+ */
+function saveShinySettings() {
+    const urlInput = document.getElementById('shiny-url');
+    if (urlInput) {
+        shinyUrl = urlInput.value.trim();
+        localStorage.setItem('shiny-url', shinyUrl);
+    }
+}
 
 /**
- * Opens the mapping modal and initializes data.
+ * Sends the entire merged AoA to the configured Shiny Sync URL (port 7800 by default).
+ * The Shiny app runs a dedicated httpuv server on that port to receive the data.
+ */
+async function syncToShiny() {
+    const urlInput = document.getElementById('shiny-url');
+    const currentShinyUrl = urlInput ? urlInput.value.trim() : shinyUrl;
+
+    if (!currentShinyUrl) {
+        alert("Please configure the Shiny App URL first.\n\nExample: http://127.0.0.1:7800");
+        return;
+    }
+
+    const mergedData = getMergedAoAData();
+    if (!mergedData || mergedData.length === 0) {
+        alert("No merged data available to sync.");
+        return;
+    }
+
+    const btn = document.getElementById('start-shiny-sync');
+    const btnText = document.getElementById('shiny-sync-btn-text');
+    const spinner = document.getElementById('shiny-sync-spinner');
+    const statusText = document.getElementById('shiny-sync-status');
+
+    try {
+        btn.disabled = true;
+        spinner.classList.remove('hidden');
+        btnText.textContent = "Syncing...";
+        statusText.textContent = "Sending data to Shiny...";
+        statusText.className = "text-xs font-medium text-indigo-600";
+
+        const response = await fetch(currentShinyUrl, {
+            method: 'POST',
+            mode: 'cors',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(mergedData)
+        });
+
+        if (response.ok) {
+            statusText.textContent = `Successfully synced ${mergedData.length - 1} rows to Shiny!`;
+            statusText.className = "text-xs font-medium text-emerald-600";
+            
+            setTimeout(() => {
+                closeSpecificModal('shiny-modal');
+            }, 1000);
+        } else {
+            throw new Error(`Server responded with ${response.status}`);
+        }
+
+    } catch (error) {
+        console.error("Shiny sync error:", error);
+        statusText.textContent = `Sync failed: ${error.message}`;
+        statusText.className = "text-xs font-medium text-red-600";
+        alert(`Error syncing to Shiny: ${error.message}`);
+    } finally {
+        btn.disabled = false;
+        spinner.classList.add('hidden');
+        btnText.textContent = "Sync to Shiny App";
+    }
+}
+
+
+/**
+ * Opens the Google Sheets mapping modal.
  */
 function showMappingModal() {
     const modal = document.getElementById('sync-modal');
@@ -809,10 +880,25 @@ function showMappingModal() {
 }
 
 /**
- * Closes the mapping modal.
+ * Opens the Shiny App sync modal.
  */
-function closeMappingModal() {
-    const modal = document.getElementById('sync-modal');
+function showShinyModal() {
+    const modal = document.getElementById('shiny-modal');
+    const urlInput = document.getElementById('shiny-url');
+
+    if (!modal || files.length === 0) return;
+
+    // Load saved URL
+    if (urlInput) urlInput.value = shinyUrl;
+
+    modal.classList.remove('hidden');
+}
+
+/**
+ * Closes a specific modal by ID.
+ */
+function closeSpecificModal(modalId) {
+    const modal = document.getElementById(modalId);
     if (modal) modal.classList.add('hidden');
 }
 
@@ -846,7 +932,7 @@ function renderSubmissionMappingDropdown() {
 /**
  * Prepares and sends all submissions to Google Sheets with automated defaults.
  */
-async function sendSubmissionsToGoogle() {
+async function startGasSync() {
     saveGasSettings();
 
     if (!gasUrl) {
@@ -953,7 +1039,7 @@ async function sendSubmissionsToGoogle() {
 
     setTimeout(() => {
         if (successCount > 0 && errorCount === 0) {
-            closeMappingModal();
+            closeSpecificModal('sync-modal');
         }
     }, 1000);
 }
@@ -1236,6 +1322,10 @@ function renderMergedData() {
     if (syncGoogleBtn) {
         syncGoogleBtn.disabled = files.length === 0;
     }
+    const syncShinyBtn = document.getElementById('sync-shiny-button');
+    if (syncShinyBtn) {
+        syncShinyBtn.disabled = files.length === 0;
+    }
 
     // --- FIX 1: Calculate the total uncapped sample count here (from file.dataRows) ---
     const totalUncappedSamples = files.reduce((sum, file) => {
@@ -1398,23 +1488,42 @@ function init() {
     // Initial render of the column select (will show A-Z)
     renderColumnSelect();
 
-    // --- GOOGLE SYNC LISTENERS ---
-    const syncBtn = document.getElementById('sync-google-button');
-    const closeModalBtn = document.getElementById('close-modal');
-    const cancelSyncBtn = document.getElementById('cancel-sync');
-    const startSyncBtn = document.getElementById('start-sync');
+    // --- SYNC LISTENERS ---
+    const syncGoogleBtn = document.getElementById('sync-google-button');
+    const syncShinyToolbarBtn = document.getElementById('sync-shiny-button');
+    const startGasSyncBtn = document.getElementById('start-sync');
+    const startShinySyncBtn = document.getElementById('start-shiny-sync');
 
-    if (syncBtn) {
-        syncBtn.addEventListener('click', showMappingModal);
+    if (syncGoogleBtn) {
+        syncGoogleBtn.addEventListener('click', showMappingModal);
     }
-    if (closeModalBtn) {
-        closeModalBtn.addEventListener('click', closeMappingModal);
+    if (syncShinyToolbarBtn) {
+        syncShinyToolbarBtn.addEventListener('click', showShinyModal);
     }
-    if (cancelSyncBtn) {
-        cancelSyncBtn.addEventListener('click', closeMappingModal);
+
+    // Generic modal close handlers
+    document.querySelectorAll('.close-modal, .cancel-modal').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const targetId = e.currentTarget.getAttribute('data-target');
+            if (targetId) closeSpecificModal(targetId);
+        });
+    });
+
+    if (startGasSyncBtn) {
+        startGasSyncBtn.addEventListener('click', startGasSync);
     }
-    if (startSyncBtn) {
-        startSyncBtn.addEventListener('click', sendSubmissionsToGoogle);
+    if (startShinySyncBtn) {
+        startShinySyncBtn.addEventListener('click', syncToShiny);
+    }
+
+    // Persist settings on change
+    const gasUrlInput = document.getElementById('gas-url');
+    if (gasUrlInput) {
+        gasUrlInput.addEventListener('input', saveGasSettings);
+    }
+    const shinyUrlInput = document.getElementById('shiny-url');
+    if (shinyUrlInput) {
+        shinyUrlInput.addEventListener('input', saveShinySettings);
     }
 
     updateApp(); // Also calls renderColumnSelect/renderMergedData

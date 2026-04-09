@@ -101,6 +101,13 @@
                                 </svg>
                                 Sync to Google Sheets
                             </button>
+                            <button id="sync-shiny-button"
+                                class="flex items-center gap-2 bg-emerald-600 text-white px-4 py-1 rounded-xl shadow-lg hover:bg-emerald-700 transition-all font-semibold text-sm"
+                                disabled title="Send merged data directly to a Shiny App">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-emerald-200">
+                                    <rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                                Sync to Shiny App
+                            </button>
                         </div>
 
                         <div id="summary-info"
@@ -125,7 +132,7 @@
                         <h2 class="text-xl font-bold text-indigo-900 leading-tight">Sync to Google Sheets</h2>
                         <p class="text-xs text-indigo-600 font-medium">Map columns and send submissions</p>
                     </div>
-                    <button id="close-modal" class="text-indigo-400 hover:text-indigo-600 transition-colors p-2 hover:bg-indigo-100 rounded-lg">
+                    <button class="close-modal bg-transparent text-indigo-400 hover:text-indigo-600 transition-colors p-2 hover:bg-indigo-100 rounded-lg" data-target="sync-modal">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
                     </button>
                 </div>
@@ -146,22 +153,58 @@
                             Submission Column (Excel)
                         </label>
                         <select id="submission-column-select" class="w-full px-4 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white shadow-sm transition-all">
-                            <!-- Options will be dynamically inserted here -->
                             <option value="-1">Loading columns...</option>
                         </select>
-                        <p class="mt-2 text-xs text-indigo-500 italic">Select the Excel column that should fill the "Submission" field in Google Sheets. Other fields are filled automatically.</p>
+                        <p class="mt-2 text-xs text-indigo-500 italic">Select the Excel column that should fill the "Submission" field in Google Sheets.</p>
                     </div>
                 </div>
 
                 <div class="p-6 border-t bg-gray-50 flex justify-between items-center border-gray-200">
                     <p id="sync-status" class="text-xs font-medium"></p>
                     <div class="flex gap-3">
-                        <button id="cancel-sync" class="px-6 py-2 text-gray-600 font-semibold hover:bg-gray-200 rounded-xl transition-all">
+                        <button class="cancel-modal px-6 py-2 text-gray-600 font-semibold hover:bg-gray-200 rounded-xl transition-all" data-target="sync-modal">
                             Cancel
                         </button>
                         <button id="start-sync" class="bg-indigo-600 text-white px-8 py-2 rounded-xl shadow-lg hover:bg-indigo-700 transition-all font-bold flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
                             <span id="sync-btn-text">Send Submissions</span>
                             <div id="sync-spinner" class="hidden animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shiny App Sync Modal -->
+        <div id="shiny-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <div class="p-6 border-b bg-emerald-50 flex justify-between items-center border-emerald-100">
+                    <div>
+                        <h2 class="text-xl font-bold text-emerald-900 leading-tight">Sync to Shiny App</h2>
+                        <p class="text-xs text-emerald-600 font-medium">Send merged data as JSON</p>
+                    </div>
+                    <button class="close-modal bg-transparent text-emerald-400 hover:text-emerald-600 transition-colors p-2 hover:bg-emerald-100 rounded-lg" data-target="shiny-modal">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+                    </button>
+                </div>
+                
+                <div class="p-6 overflow-y-auto space-y-6">
+                    <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                        <label for="shiny-url" class="block text-sm font-semibold text-emerald-900 mb-2">Shiny Sync URL</label>
+                        <input type="text" id="shiny-url" placeholder="http://127.0.0.1:7800" 
+                            class="w-full px-4 py-2 border border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all shadow-sm">
+                        <p class="mt-2 text-xs text-emerald-500 italic">Enter the URL of the sync server (port 7800 by default). Data is sent as a JSON POST request.</p>
+                    </div>
+                </div>
+
+                <div class="p-6 border-t bg-gray-50 flex justify-between items-center border-gray-200">
+                    <p id="shiny-sync-status" class="text-xs font-medium"></p>
+                    <div class="flex gap-3">
+                        <button class="cancel-modal px-6 py-2 text-gray-600 font-semibold hover:bg-gray-200 rounded-xl transition-all" data-target="shiny-modal">
+                            Cancel
+                        </button>
+                        <button id="start-shiny-sync" class="bg-emerald-600 text-white px-8 py-2 rounded-xl shadow-lg hover:bg-emerald-700 transition-all font-bold flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span id="shiny-sync-btn-text">Sync to Shiny App</span>
+                            <div id="shiny-sync-spinner" class="hidden animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
                         </button>
                     </div>
                 </div>
