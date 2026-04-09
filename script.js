@@ -408,10 +408,25 @@ async function handleFileUpload(fileList) {
     }
 
     const uploadedFiles = Array.from(fileList);
+    const newFiles = uploadedFiles.filter(file => {
+        const isDuplicate = files.some(existingFile => existingFile.name === file.name);
+        if (isDuplicate) {
+            console.warn(`File "${file.name}" has already been uploaded. Skipping.`);
+        }
+        return !isDuplicate;
+    });
+
+    if (newFiles.length === 0 && uploadedFiles.length > 0) {
+        alert("Trying to upload the same file(s) again.");
+        return;
+    } else if (newFiles.length < uploadedFiles.length) {
+        alert(`Skipped ${uploadedFiles.length - newFiles.length} file(s) that were already uploaded.`);
+    }
+
     const currentSheetIndex = globalSheetIndex; // Use the dynamic index
 
     const processedFiles = await Promise.all(
-        uploadedFiles.map(async (file) => {
+        newFiles.map(async (file) => {
             try {
                 const data = await file.arrayBuffer();
                 const workbook = XLSX.read(data, { type: 'array' });
@@ -842,7 +857,7 @@ async function syncToShiny() {
         if (response.ok) {
             statusText.textContent = `Successfully synced ${mergedData.length - 1} rows to Shiny!`;
             statusText.className = "text-xs font-medium text-emerald-600";
-            
+
             setTimeout(() => {
                 closeSpecificModal('shiny-modal');
             }, 1000);
@@ -854,7 +869,7 @@ async function syncToShiny() {
         console.error("Shiny sync error:", error);
         statusText.textContent = `Sync failed: ${error.message}`;
         statusText.className = "text-xs font-medium text-red-600";
-        alert(`Error syncing to Shiny: ${error.message}`);
+        alert(`Error syncing to Shiny: ${error.message}. Is the Shiny app running?`);
     } finally {
         btn.disabled = false;
         spinner.classList.add('hidden');
@@ -1140,9 +1155,11 @@ function renderColumnSelect() {
 function renderFileItem(file, index) {
     const item = document.createElement('div');
     item.id = `file-item-${file.id}`;
-    item.className = 'file-item flex flex-col md:flex-row items-start md:items-center justify-between bg-gray-50 p-3 rounded-xl shadow-sm border border-gray-100 transition-all duration-150 ease-in-out hover:bg-gray-100 hover:shadow-md space-y-2 md:space-y-0';
 
-    const fileColor = FILE_COLORS[index % FILE_COLORS.length].replace('/70', '');
+    const bgColorClass = FILE_COLORS[index % FILE_COLORS.length];
+    item.className = `file-item flex flex-col md:flex-row items-start md:items-center justify-between ${bgColorClass} p-3 rounded-xl shadow-sm border border-gray-100 transition-all duration-150 ease-in-out hover:shadow-md space-y-2 md:space-y-0`;
+
+    const fileColor = FILE_COLORS[index % FILE_COLORS.length].replace('/15', '');
 
     // --- COLLISION CHECK AND DROPDOWN GENERATION ---
 
@@ -1250,8 +1267,15 @@ function renderFileList() {
     container.classList.remove('hidden');
     headerElement.textContent = `Uploaded Files (${files.length})`;
 
+    // 1. Pre-calculate to ensure all start wells are auto-corrected based on current array order
+    files.forEach((_, i) => getPrecedingOccupiedIndices(i));
+
+    // 2. Sort visually so they appear in plate order
+    const sortedFilesWithIndex = files.map((file, index) => ({ file, index }));
+    sortedFilesWithIndex.sort((a, b) => wellTo1DIndex(a.file.startWell) - wellTo1DIndex(b.file.startWell));
+
     listElement.innerHTML = '';
-    files.forEach((file, index) => {
+    sortedFilesWithIndex.forEach(({ file, index }) => {
         listElement.appendChild(renderFileItem(file, index));
     });
 }
@@ -1347,10 +1371,19 @@ function renderMergedData() {
     }
     // -------------------------------------------------------------------
 
+    const fillPercent = Math.round((totalPopulatedPreviewCells / GRID_SIZE) * 100);
+
     // --- FIX 2: Update summary info to show both uncapped and preview totals ---
     summaryInfo.innerHTML = `
-        Total samples: <span class="font-semibold text-green-900">${totalPopulatedPreviewCells}</span> | 
-        Previewing <span class="font-semibold text-green-900">${displayHeaderName}</span> from <span class="font-semibold text-green-900">${sheetDisplayName}</span>
+        <div class="flex flex-col gap-2">
+            <div class="flex items-center justify-between text-gray-700">
+                <span>Samples: <span class="font-semibold text-green-900">${totalPopulatedPreviewCells}</span></span>
+                <span>Free wells: <span class="font-semibold text-green-900">${GRID_SIZE - totalPopulatedPreviewCells}</span></span>
+            </div>
+            <div class="w-full bg-green-200 rounded-full h-2 overflow-hidden">
+                <div class="bg-green-500 h-2 rounded-full transition-all duration-500 ease-out" style="width: ${fillPercent}%"></div>
+            </div>
+        </div>
     `;
 
     // 1. Build the table HTML (8x12 fixed grid, using mergedPreviewData)
@@ -1432,6 +1465,28 @@ function init() {
     const downloadSummaryButton = document.getElementById('download-summary-button');
     const columnSelect = document.getElementById('preview-column-select');
     const sheetSelect = document.getElementById('sheet-index-select'); // 🌟 NEW ELEMENT
+
+    // --- COLLAPSE/EXPAND LOGIC ---
+    const collapseBtn = document.getElementById('collapse-files-btn');
+    const expandBtn = document.getElementById('expand-files-btn');
+    const leftColumn = document.getElementById('left-column');
+    const rightColumn = document.getElementById('right-column');
+
+    if (collapseBtn && expandBtn && leftColumn && rightColumn) {
+        collapseBtn.addEventListener('click', () => {
+            leftColumn.classList.add('hidden');
+            rightColumn.classList.remove('lg:w-2/3');
+            rightColumn.classList.add('w-full');
+            expandBtn.classList.remove('hidden');
+        });
+
+        expandBtn.addEventListener('click', () => {
+            leftColumn.classList.remove('hidden');
+            rightColumn.classList.remove('w-full');
+            rightColumn.classList.add('lg:w-2/3');
+            expandBtn.classList.add('hidden');
+        });
+    }
 
     // 1. File Input Listener
     fileInput.addEventListener('change', (e) => {

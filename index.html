@@ -11,7 +11,7 @@
 </head>
 
 <body class="min-h-screen bg-gray-50 font-sans p-4 sm:p-8 text-sm">
-    <h1 class="text-2xl text-green-800 mb-2 text-center">Combine Infinity Submissions</h2>
+    <h1 class="text-2xl text-gray-600 mb-2 text-center">Combine Infinity Submissions</h2>
         <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
 
             <div id="upload-section"
@@ -59,7 +59,7 @@
 
             <div class="flex flex-col lg:flex-row lg:gap-8">
 
-                <div class="lg:w-1/3 flex flex-col space-y-4">
+                <div id="left-column" class="lg:w-1/3 flex flex-col space-y-4">
                     <div id="file-list-container"
                         class="hidden bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
                         <div
@@ -67,6 +67,9 @@
                             <h2 id="file-list-header" class="text-gray-500 mb-4 sm:mb-0">
                                 Uploaded Files (0)
                             </h2>
+                            <button id="collapse-files-btn" class="text-gray-400 hover:text-gray-800 p-1 rounded bg-gray-50 hover:bg-gray-100 transition-colors border border-transparent hover:border-gray-200" title="Hide file list">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                            </button>
                         </div>
 
                         <div id="file-list" class="space-y-2">
@@ -75,18 +78,21 @@
                     </div>
                 </div>
 
-                <div class="lg:w-2/3 mt-6 lg:mt-0">
+                <div id="right-column" class="lg:w-2/3 mt-6 lg:mt-0">
                     <div id="merged-data-view" class="hidden bg-white rounded-2xl shadow-xl p-6">
                         <div class="flex justify-between items-center mb-6 border-b pb-4">
-                            <h2 class="text-gray-500">
+                            <h2 class="text-gray-500 flex items-center gap-2">
+                                <button id="expand-files-btn" class="hidden text-gray-500 hover:text-gray-800 p-1 bg-gray-50 hover:bg-gray-100 rounded transition-colors border border-gray-200" title="Show file list">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                                </button>
                                 <span id="current-column-display">Column J</span>
                             </h2>
                             <button id="download-button"
-                                class="flex items-center gap-2 bg-green-600 text-white px-4 py-1 rounded-xl shadow-lg hover:bg-green-700 transition-all font-semibold text-sm"
+                                class="flex items-center gap-2 bg-gray-600 text-white px-4 py-1 rounded-xl shadow-lg hover:bg-gray-700 transition-all font-semibold text-sm"
                                 disabled>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" class="w-4 h-4">
+                                    stroke-linejoin="round" class="w-4 h-4 text-gray-200">
                                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                     <polyline points="7 10 12 15 17 10"></polyline>
                                     <line x1="12" x2="12" y1="15" y2="3"></line>
@@ -94,18 +100,27 @@
                                 Download combined data
                             </button>
                             <button id="sync-google-button"
-                                class="flex items-center gap-2 bg-indigo-600 text-white px-4 py-1 rounded-xl shadow-lg hover:bg-indigo-700 transition-all font-semibold text-sm"
+                                class="flex items-center gap-2 bg-gray-600 text-white px-4 py-1 rounded-xl shadow-lg hover:bg-gray-700 transition-all font-semibold text-sm"
                                 disabled title="Send individual submission rows to Google Sheets">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-indigo-200">
-                                    <path d="M7 10v4h10v-4H7Z"></path><path d="M7 6v12"></path><path d="M17 6v12"></path>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" class="w-4 h-4 text-gray-200">
+                                    <path d="M7 10v4h10v-4H7Z"></path>
+                                    <path d="M7 6v12"></path>
+                                    <path d="M17 6v12"></path>
                                 </svg>
                                 Sync to Google Sheets
                             </button>
                             <button id="sync-shiny-button"
-                                class="flex items-center gap-2 bg-emerald-600 text-white px-4 py-1 rounded-xl shadow-lg hover:bg-emerald-700 transition-all font-semibold text-sm"
+                                class="flex items-center gap-2 bg-gray-600 text-white px-4 py-1 rounded-xl shadow-lg hover:bg-gray-700 transition-all font-semibold text-sm"
                                 disabled title="Send merged data directly to a Shiny App">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-emerald-200">
-                                    <rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round" class="w-4 h-4 text-gray-200">
+                                    <rect width="18" height="18" x="3" y="3" rx="2" />
+                                    <path d="M3 9h18" />
+                                    <path d="M9 21V9" />
+                                </svg>
                                 Sync to Shiny App
                             </button>
                         </div>
@@ -125,49 +140,72 @@
         </div>
 
         <!-- Google Sheets Sync Modal -->
-        <div id="sync-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div id="sync-modal"
+            class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
             <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
                 <div class="p-6 border-b bg-indigo-50 flex justify-between items-center border-indigo-100">
                     <div>
                         <h2 class="text-xl font-bold text-indigo-900 leading-tight">Sync to Google Sheets</h2>
                         <p class="text-xs text-indigo-600 font-medium">Map columns and send submissions</p>
                     </div>
-                    <button class="close-modal bg-transparent text-indigo-400 hover:text-indigo-600 transition-colors p-2 hover:bg-indigo-100 rounded-lg" data-target="sync-modal">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+                    <button
+                        class="close-modal bg-transparent text-indigo-400 hover:text-indigo-600 transition-colors p-2 hover:bg-indigo-100 rounded-lg"
+                        data-target="sync-modal">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18 6 6 18"></path>
+                            <path d="m6 6 12 12"></path>
+                        </svg>
                     </button>
                 </div>
-                
+
                 <div class="p-6 overflow-y-auto space-y-6">
                     <!-- GAS URL Input -->
                     <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-                        <label for="gas-url" class="block text-sm font-semibold text-indigo-900 mb-2">Google Apps Script Web App URL</label>
-                        <input type="text" id="gas-url" placeholder="https://script.google.com/macros/s/.../exec" 
+                        <label for="gas-url" class="block text-sm font-semibold text-indigo-900 mb-2">Google Apps Script
+                            Web App URL</label>
+                        <input type="text" id="gas-url" placeholder="https://script.google.com/macros/s/.../exec"
                             class="w-full px-4 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm">
-                        <p class="mt-2 text-xs text-indigo-500 italic">Deploy your script as a Web App with access set to "Anyone". This URL will be saved locally.</p>
+                        <p class="mt-2 text-xs text-indigo-500 italic">Deploy your script as a Web App with access set
+                            to "Anyone". This URL will be saved locally.</p>
                     </div>
 
                     <!-- Submission Column Mapping -->
                     <div id="mapping-container" class="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-                        <label for="submission-column-select" class="block text-sm font-semibold text-indigo-900 mb-2 flex items-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-500"><path d="M7 10v4h10v-4H7Z"></path><path d="M7 6v12"></path><path d="M17 6v12"></path></svg>
+                        <label for="submission-column-select"
+                            class="block text-sm font-semibold text-indigo-900 mb-2 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round" class="text-indigo-500">
+                                <path d="M7 10v4h10v-4H7Z"></path>
+                                <path d="M7 6v12"></path>
+                                <path d="M17 6v12"></path>
+                            </svg>
                             Submission Column (Excel)
                         </label>
-                        <select id="submission-column-select" class="w-full px-4 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white shadow-sm transition-all">
+                        <select id="submission-column-select"
+                            class="w-full px-4 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white shadow-sm transition-all">
                             <option value="-1">Loading columns...</option>
                         </select>
-                        <p class="mt-2 text-xs text-indigo-500 italic">Select the Excel column that should fill the "Submission" field in Google Sheets.</p>
+                        <p class="mt-2 text-xs text-indigo-500 italic">Select the Excel column that should fill the
+                            "Submission" field in Google Sheets.</p>
                     </div>
                 </div>
 
                 <div class="p-6 border-t bg-gray-50 flex justify-between items-center border-gray-200">
                     <p id="sync-status" class="text-xs font-medium"></p>
                     <div class="flex gap-3">
-                        <button class="cancel-modal px-6 py-2 text-gray-600 font-semibold hover:bg-gray-200 rounded-xl transition-all" data-target="sync-modal">
+                        <button
+                            class="cancel-modal px-6 py-2 text-gray-600 font-semibold hover:bg-gray-200 rounded-xl transition-all"
+                            data-target="sync-modal">
                             Cancel
                         </button>
-                        <button id="start-sync" class="bg-indigo-600 text-white px-8 py-2 rounded-xl shadow-lg hover:bg-indigo-700 transition-all font-bold flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <button id="start-sync"
+                            class="bg-indigo-600 text-white px-8 py-2 rounded-xl shadow-lg hover:bg-indigo-700 transition-all font-bold flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
                             <span id="sync-btn-text">Send Submissions</span>
-                            <div id="sync-spinner" class="hidden animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                            <div id="sync-spinner"
+                                class="hidden animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent">
+                            </div>
                         </button>
                     </div>
                 </div>
@@ -175,36 +213,50 @@
         </div>
 
         <!-- Shiny App Sync Modal -->
-        <div id="shiny-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div id="shiny-modal"
+            class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
             <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
                 <div class="p-6 border-b bg-emerald-50 flex justify-between items-center border-emerald-100">
                     <div>
                         <h2 class="text-xl font-bold text-emerald-900 leading-tight">Sync to Shiny App</h2>
                         <p class="text-xs text-emerald-600 font-medium">Send merged data as JSON</p>
                     </div>
-                    <button class="close-modal bg-transparent text-emerald-400 hover:text-emerald-600 transition-colors p-2 hover:bg-emerald-100 rounded-lg" data-target="shiny-modal">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+                    <button
+                        class="close-modal bg-transparent text-emerald-400 hover:text-emerald-600 transition-colors p-2 hover:bg-emerald-100 rounded-lg"
+                        data-target="shiny-modal">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18 6 6 18"></path>
+                            <path d="m6 6 12 12"></path>
+                        </svg>
                     </button>
                 </div>
-                
+
                 <div class="p-6 overflow-y-auto space-y-6">
                     <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-                        <label for="shiny-url" class="block text-sm font-semibold text-emerald-900 mb-2">Shiny Sync URL</label>
-                        <input type="text" id="shiny-url" placeholder="http://127.0.0.1:7800" 
+                        <label for="shiny-url" class="block text-sm font-semibold text-emerald-900 mb-2">Shiny Sync
+                            URL</label>
+                        <input type="text" id="shiny-url" placeholder="http://127.0.0.1:7800"
                             class="w-full px-4 py-2 border border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all shadow-sm">
-                        <p class="mt-2 text-xs text-emerald-500 italic">Enter the URL of the sync server (port 7800 by default). Data is sent as a JSON POST request.</p>
+                        <p class="mt-2 text-xs text-emerald-500 italic">Enter the URL of the sync server (port 7800 by
+                            default). Data is sent as a JSON POST request.</p>
                     </div>
                 </div>
 
                 <div class="p-6 border-t bg-gray-50 flex justify-between items-center border-gray-200">
                     <p id="shiny-sync-status" class="text-xs font-medium"></p>
                     <div class="flex gap-3">
-                        <button class="cancel-modal px-6 py-2 text-gray-600 font-semibold hover:bg-gray-200 rounded-xl transition-all" data-target="shiny-modal">
+                        <button
+                            class="cancel-modal px-6 py-2 text-gray-600 font-semibold hover:bg-gray-200 rounded-xl transition-all"
+                            data-target="shiny-modal">
                             Cancel
                         </button>
-                        <button id="start-shiny-sync" class="bg-emerald-600 text-white px-8 py-2 rounded-xl shadow-lg hover:bg-emerald-700 transition-all font-bold flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <button id="start-shiny-sync"
+                            class="bg-emerald-600 text-white px-8 py-2 rounded-xl shadow-lg hover:bg-emerald-700 transition-all font-bold flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed">
                             <span id="shiny-sync-btn-text">Sync to Shiny App</span>
-                            <div id="shiny-sync-spinner" class="hidden animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                            <div id="shiny-sync-spinner"
+                                class="hidden animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent">
+                            </div>
                         </button>
                     </div>
                 </div>
