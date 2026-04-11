@@ -827,9 +827,25 @@ async function syncToShiny() {
         return;
     }
 
-    const mergedData = getMergedAoAData();
-    if (!mergedData || mergedData.length === 0) {
+    const mergedAoA = getMergedAoAData();
+    if (!mergedAoA || mergedAoA.length === 0) {
         alert("No merged data available to sync.");
+        return;
+    }
+
+    // Filter out empty rows (where Source File column is empty)
+    // A row in mergedAoA is: [Well Position, ...DataColumns, Source File]
+    const header = mergedAoA[0];
+    const dataRows = mergedAoA.slice(1);
+    const nonEmptyDataRows = dataRows.filter(row => {
+        const sourceFile = row[row.length - 1];
+        return sourceFile && String(sourceFile).trim() !== '';
+    });
+
+    const finalDataToSync = [header, ...nonEmptyDataRows];
+
+    if (nonEmptyDataRows.length === 0) {
+        alert("No data rows found to sync.");
         return;
     }
 
@@ -851,11 +867,11 @@ async function syncToShiny() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(mergedData)
+            body: JSON.stringify(finalDataToSync)
         });
 
         if (response.ok) {
-            statusText.textContent = `Successfully synced ${mergedData.length - 1} rows to Shiny!`;
+            statusText.textContent = `Successfully synced ${nonEmptyDataRows.length} rows to Shiny!`;
             statusText.className = "text-xs font-medium text-emerald-600";
 
             setTimeout(() => {
