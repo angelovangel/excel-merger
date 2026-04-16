@@ -148,7 +148,14 @@ function getPrecedingOccupiedIndices(fileIndex) {
         } else {
             // Check 2: Collision check against preceding files
             for (let j = 0; j < requiredLength; j++) {
-                if (occupiedIndices.has(currentStart + j)) {
+                let checkIndex;
+                if (currentFile.customSampleWells && currentFile.customSampleWells[j] !== undefined) {
+                    checkIndex = wellTo1DIndex(currentFile.customSampleWells[j]);
+                } else {
+                    checkIndex = currentStart + j;
+                }
+
+                if (occupiedIndices.has(checkIndex)) {
                     isValid = false;
                     break;
                 }
@@ -157,7 +164,7 @@ function getPrecedingOccupiedIndices(fileIndex) {
 
         // If current selection is invalid, find the first available well and update the state
         if (!isValid) {
-            const firstAvailableWell = findFirstAvailableWell(occupiedIndices, requiredLength);
+            const firstAvailableWell = findFirstAvailableWell(occupiedIndices, requiredLength, currentFile);
 
             if (firstAvailableWell) {
                 // Check if a correction is actually happening
@@ -178,15 +185,26 @@ function getPrecedingOccupiedIndices(fileIndex) {
  * Finds the first 1D index (0-95) that can accommodate the requiredLength
  * without colliding with the occupiedIndices set.
  */
-function findFirstAvailableWell(occupiedIndices, requiredLength) {
+function findFirstAvailableWell(occupiedIndices, requiredLength, currentFile) {
     for (let start = 0; start <= GRID_SIZE - requiredLength; start++) {
         let isAvailable = true;
         for (let j = 0; j < requiredLength; j++) {
-            const checkIndex = start + j;
+            let checkIndex;
+            let isCustom = false;
+            
+            if (currentFile && currentFile.customSampleWells && currentFile.customSampleWells[j] !== undefined) {
+                checkIndex = wellTo1DIndex(currentFile.customSampleWells[j]);
+                isCustom = true;
+            } else {
+                checkIndex = start + j;
+            }
+
             if (occupiedIndices.has(checkIndex)) {
                 isAvailable = false;
                 // Optimization: skip past the well that caused the collision
-                start = checkIndex;
+                if (!isCustom) {
+                    start = checkIndex;
+                }
                 break;
             }
         }
@@ -1219,7 +1237,7 @@ function renderFileItem(file, index) {
     // Make the file item draggable
     item.draggable = true;
     item.addEventListener('dragstart', (e) => {
-        e.dataTransfer.setData('text/plain', file.id);
+        e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'sidebar', fileId: file.id }));
         item.classList.add('opacity-50');
     });
     item.addEventListener('dragend', () => {
@@ -1472,7 +1490,7 @@ function renderMergedData() {
                 return `
                             <td 
                                 class="px-2 py-2 text-xs text-gray-700 text-center border-r border-gray-100 last:border-r-0 ${cellColorClass} ${fileId ? 'cursor-move' : ''}"
-                                data-well="${wellPosition}:${cellValue}" // 🌟 ADDED data-well ATTRIBUTE
+                                data-well="${wellPosition}:${cellValue}"
                                 ${fileId ? `draggable="true" data-file-id="${fileId}" data-sample-index="${cellObj.sampleIndex}"` : ''}
                             >
                                 ${cellValue}
@@ -1587,7 +1605,7 @@ function init() {
                 const fileId = td.getAttribute('data-file-id');
                 const sampleIndex = td.getAttribute('data-sample-index');
                 if (fileId) {
-                    e.dataTransfer.setData('text/plain', JSON.stringify({fileId, sampleIndex}));
+                    e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'plate', fileId, sampleIndex }));
                     td.classList.add('opacity-50');
                 }
             }
@@ -1645,12 +1663,25 @@ function init() {
                     if (dragDataStr) {
                         try {
                             const dragData = JSON.parse(dragDataStr);
-                            if (dragData.fileId && dragData.sampleIndex !== undefined) {
+                            
+                            // Handling drops from the plate (individual sample)
+                            if (dragData.type === 'plate' && dragData.fileId && dragData.sampleIndex !== undefined) {
+                                handleSampleWellChange(dragData.fileId, dragData.sampleIndex, well);
+                            } 
+                            // Handling drops from the sidebar (entire submission)
+                            else if (dragData.type === 'sidebar' && dragData.fileId) {
+                                handleWellChange(dragData.fileId, well);
+                            } 
+                            // Support for previous JSON structure if cache holds
+                            else if (dragData.fileId && dragData.sampleIndex !== undefined) {
                                 handleSampleWellChange(dragData.fileId, dragData.sampleIndex, well);
                             }
                         } catch (err) {
-                            // If it's a raw string, it was dropped from the global list
-                            handleWellChange(dragDataStr, well);
+                            // If it's a raw string, strictly verify it's a known fileId to avoid random text drops
+                            const isKnownFileId = files.some(f => f.id === dragDataStr);
+                            if (isKnownFileId) {
+                                handleWellChange(dragDataStr, well); // Fallback for deeply cached external drops
+                            }
                         }
                     }
                 }
