@@ -120,7 +120,13 @@ function getPrecedingOccupiedIndices(fileIndex) {
             const start = wellTo1DIndex(prevFile.startWell);
             // Mark all cells this file occupies as occupied
             for (let j = 0; j < prevFile.previewCellCount; j++) {
-                const index = start + j;
+                let index;
+                if (prevFile.customSampleWells && prevFile.customSampleWells[j] !== undefined) {
+                    index = wellTo1DIndex(prevFile.customSampleWells[j]);
+                } else {
+                    index = start + j;
+                }
+
                 if (index < GRID_SIZE) {
                     occupiedIndices.add(index);
                 }
@@ -320,7 +326,8 @@ function mergeData() {
                 return {
                     value: cellValue,
                     sourceColor: fileColor,
-                    sourceName: file.name
+                    sourceName: file.name,
+                    sourceFileId: file.id
                 };
             });
 
@@ -328,8 +335,15 @@ function mergeData() {
 
         // Place this file's data into the 1D grid
         filePreviewCells.forEach((cell, i) => {
-            const targetIndex = start + i;
+            let targetIndex;
+            if (file.customSampleWells && file.customSampleWells[i] !== undefined) {
+                targetIndex = wellTo1DIndex(file.customSampleWells[i]);
+            } else {
+                targetIndex = start + i;
+            }
+
             if (targetIndex < GRID_SIZE) {
+                cell.sampleIndex = i; // Store sequential index for dropping
                 finalGrid1D[targetIndex] = cell;
             }
         });
@@ -401,7 +415,7 @@ function getNormalizedHeaderString(headerArray) {
 /**
  * Processes uploaded files using the XLSX library.
  */
-async function handleFileUpload(fileList) {
+async function handleFileUpload(fileList, targetWell = null) {
     if (typeof XLSX === 'undefined' || !XLSX) {
         console.error("XLSX library failed to load.");
         return;
@@ -477,7 +491,13 @@ async function handleFileUpload(fileList) {
     }
 
     const successfulFiles = [];
+    let isFirstFile = true;
     for (const f of validProcessedFiles) {
+        if (targetWell && isFirstFile) {
+            f.startWell = targetWell;
+            isFirstFile = false;
+        }
+
         const fData = f.sheetData[currentSheetIndex];
         const fHeader = (fData && fData.length > 0) ? fData[0] : [];
         const fHeaderJSON = getNormalizedHeaderString(fHeader);
@@ -504,6 +524,25 @@ function handleWellChange(fileId, newWell) {
     const fileIndex = files.findIndex(f => f.id === fileId);
     if (fileIndex > -1) {
         files[fileIndex].startWell = newWell;
+        // Optionally clear custom placements when full file is moved
+        files[fileIndex].customSampleWells = {};
+        updateApp();
+    }
+}
+
+/**
+ * Updates the custom well position for a specific sample in a file.
+ */
+function handleSampleWellChange(fileId, sampleIndexStr, newWell) {
+    const fileIndex = files.findIndex(f => f.id === fileId);
+    if (fileIndex > -1) {
+        const file = files[fileIndex];
+        if (!file.customSampleWells) {
+            file.customSampleWells = {};
+        }
+        
+        const sampleIndex = parseInt(sampleIndexStr, 10);
+        file.customSampleWells[sampleIndex] = newWell;
         updateApp();
     }
 }
@@ -577,8 +616,13 @@ function getMergedAoAData() {
         const sourceFile = files.find(f => f.name === rowObj.sourceName);
 
         if (sourceFile) {
-            const start1DIndex = wellTo1DIndex(sourceFile.startWell);
-            const final1DIndex = start1DIndex + rowObj.sequentialIndex;
+            let final1DIndex;
+            if (sourceFile.customSampleWells && sourceFile.customSampleWells[rowObj.sequentialIndex] !== undefined) {
+                final1DIndex = wellTo1DIndex(sourceFile.customSampleWells[rowObj.sequentialIndex]);
+            } else {
+                const start1DIndex = wellTo1DIndex(sourceFile.startWell);
+                final1DIndex = start1DIndex + rowObj.sequentialIndex;
+            }
 
             if (final1DIndex >= 0 && final1DIndex < GRID_SIZE) {
                 const targetIndexInAoA = final1DIndex + 1;
@@ -1172,8 +1216,18 @@ function renderFileItem(file, index) {
     const item = document.createElement('div');
     item.id = `file-item-${file.id}`;
 
+    // Make the file item draggable
+    item.draggable = true;
+    item.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', file.id);
+        item.classList.add('opacity-50');
+    });
+    item.addEventListener('dragend', () => {
+        item.classList.remove('opacity-50');
+    });
+
     const bgColorClass = FILE_COLORS[index % FILE_COLORS.length];
-    item.className = `file-item flex flex-col md:flex-row items-start md:items-center justify-between ${bgColorClass} p-3 rounded-xl shadow-sm border border-gray-100 transition-all duration-150 ease-in-out hover:shadow-md space-y-2 md:space-y-0`;
+    item.className = `file-item cursor-move flex flex-col md:flex-row items-start md:items-center justify-between ${bgColorClass} p-3 rounded-xl shadow-sm border border-gray-100 transition-all duration-150 ease-in-out hover:shadow-md space-y-2 md:space-y-0`;
 
     const fileColor = FILE_COLORS[index % FILE_COLORS.length].replace('/15', '');
 
@@ -1305,31 +1359,6 @@ function renderMergedData() {
     const downloadButton = document.getElementById('download-button');
     const downloadSummaryButton = document.getElementById('download-summary-button');
     const summaryInfo = document.getElementById('summary-info');
-    const columnDisplay = document.getElementById('current-column-display');
-
-    // --- Determine current column display name and sheet name ---
-    const currentHeader = globalColumnHeaders[previewColumnIndex] || getColumnName(previewColumnIndex);
-    const letterName = getColumnName(previewColumnIndex);
-
-    let displayHeaderName;
-    // If the header is just a column letter, display "Column J", otherwise "Concentration (J)"
-    if (currentHeader === letterName) {
-        displayHeaderName = `Column ${currentHeader}`;
-    } else {
-        displayHeaderName = `${currentHeader} (${letterName})`;
-    }
-
-    if (previewColumnIndex2 !== -1) {
-        const currentHeader2 = globalColumnHeaders[previewColumnIndex2] || getColumnName(previewColumnIndex2);
-        const letterName2 = getColumnName(previewColumnIndex2);
-        let displayHeaderName2;
-        if (currentHeader2 === letterName2) {
-            displayHeaderName2 = `Column ${currentHeader2}`;
-        } else {
-            displayHeaderName2 = `${currentHeader2} (${letterName2})`;
-        }
-        displayHeaderName += ` - ${displayHeaderName2}`;
-    }
 
     // 🌟 NEW: Get sheet name for display
     const currentSheetIndex = globalSheetIndex;
@@ -1340,11 +1369,6 @@ function renderMergedData() {
         if (workbookSheetName && workbookSheetName.toLowerCase() !== sheetDisplayName.toLowerCase()) {
             sheetDisplayName = workbookSheetName;
         }
-    }
-
-
-    if (columnDisplay) {
-        columnDisplay.textContent = displayHeaderName;
     }
 
     if (!mergedPreviewData) {
@@ -1438,6 +1462,7 @@ function renderMergedData() {
                     ${row.map((cellObj, j) => {
                 const cellValue = cellObj.value || '';
                 const cellColorClass = cellObj.sourceColor || ''; // Apply the color class with opacity
+                const fileId = cellObj.sourceFileId || '';
 
                 // 🌟 MODIFICATION START: Use data-well instead of title
                 const index = j * ROWS + i; // Calculate the 1D index based on column-major order
@@ -1446,9 +1471,9 @@ function renderMergedData() {
 
                 return `
                             <td 
-                                class="px-2 py-2 text-xs text-gray-700 text-center border-r border-gray-100 last:border-r-0 ${cellColorClass}"
+                                class="px-2 py-2 text-xs text-gray-700 text-center border-r border-gray-100 last:border-r-0 ${cellColorClass} ${fileId ? 'cursor-move' : ''}"
                                 data-well="${wellPosition}:${cellValue}" // 🌟 ADDED data-well ATTRIBUTE
-                               
+                                ${fileId ? `draggable="true" data-file-id="${fileId}" data-sample-index="${cellObj.sampleIndex}"` : ''}
                             >
                                 ${cellValue}
                             </td>
@@ -1551,6 +1576,87 @@ function init() {
             handleFileUpload(e.dataTransfer.files);
         }
     });
+
+    // Setup drag and drop for the plate wells
+    const tableContainer = document.getElementById('merged-table-container');
+    if (tableContainer) {
+        // Handle dragging from the table
+        tableContainer.addEventListener('dragstart', (e) => {
+            const td = e.target.closest('td[draggable="true"]');
+            if (td) {
+                const fileId = td.getAttribute('data-file-id');
+                const sampleIndex = td.getAttribute('data-sample-index');
+                if (fileId) {
+                    e.dataTransfer.setData('text/plain', JSON.stringify({fileId, sampleIndex}));
+                    td.classList.add('opacity-50');
+                }
+            }
+        });
+
+        tableContainer.addEventListener('dragend', (e) => {
+             const td = e.target.closest('td[draggable="true"]');
+             if (td) {
+                 td.classList.remove('opacity-50');
+             }
+        });
+
+        tableContainer.addEventListener('dragover', (e) => {
+            const td = e.target.closest('td[data-well]');
+            if (td) {
+                if (td.hasAttribute('data-file-id')) {
+                    // Busy well! Drop not allowed.
+                    if (e.dataTransfer) e.dataTransfer.dropEffect = 'none';
+                    td.classList.add('bg-red-50');
+                } else {
+                    e.preventDefault(); // Necessary to allow dropping
+                    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+                    td.classList.add('bg-indigo-100', 'border-indigo-400');
+                }
+            }
+        });
+
+        tableContainer.addEventListener('dragleave', (e) => {
+            const td = e.target.closest('td[data-well]');
+            if (td) {
+                td.classList.remove('bg-indigo-100', 'border-indigo-400', 'bg-red-50');
+            }
+        });
+
+        tableContainer.addEventListener('drop', (e) => {
+            const td = e.target.closest('td[data-well]');
+            if (td) {
+                e.preventDefault();
+                td.classList.remove('bg-indigo-100', 'border-indigo-400', 'bg-red-50');
+                
+                // Double protection: prevent drops on occupied wells
+                if (td.hasAttribute('data-file-id')) return;
+                
+                const dataWell = td.getAttribute('data-well');
+                if (!dataWell) return;
+                const well = dataWell.split(':')[0]; // get the coordinate (e.g. 'C4')
+
+                // Check if dropping an external file
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    handleFileUpload(e.dataTransfer.files, well);
+                } 
+                // Check if dragging an existing submission/sample
+                else {
+                    const dragDataStr = e.dataTransfer.getData('text/plain');
+                    if (dragDataStr) {
+                        try {
+                            const dragData = JSON.parse(dragDataStr);
+                            if (dragData.fileId && dragData.sampleIndex !== undefined) {
+                                handleSampleWellChange(dragData.fileId, dragData.sampleIndex, well);
+                            }
+                        } catch (err) {
+                            // If it's a raw string, it was dropped from the global list
+                            handleWellChange(dragDataStr, well);
+                        }
+                    }
+                }
+            }
+        });
+    }
 
     // Prevent drag-and-drop file opening for the entire document
     document.body.addEventListener('dragover', (e) => e.preventDefault());
