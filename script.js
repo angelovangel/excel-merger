@@ -191,7 +191,7 @@ function findFirstAvailableWell(occupiedIndices, requiredLength, currentFile) {
         for (let j = 0; j < requiredLength; j++) {
             let checkIndex;
             let isCustom = false;
-            
+
             if (currentFile && currentFile.customSampleWells && currentFile.customSampleWells[j] !== undefined) {
                 checkIndex = wellTo1DIndex(currentFile.customSampleWells[j]);
                 isCustom = true;
@@ -558,7 +558,7 @@ function handleSampleWellChange(fileId, sampleIndexStr, newWell) {
         if (!file.customSampleWells) {
             file.customSampleWells = {};
         }
-        
+
         const sampleIndex = parseInt(sampleIndexStr, 10);
         file.customSampleWells[sampleIndex] = newWell;
         updateApp();
@@ -745,66 +745,57 @@ function downloadMerged() {
     XLSX.utils.book_append_sheet(wb, ws, `Sheet${sheetNum}_Concatenated`);
 
     // --- SUMMARY SHEET ---
-    const summaryCounts = {};
-    const uniqueVal1 = new Set();
-    const uniqueVal2 = new Set();
+    // 1. Identify the indices of the columns we are grouping by in the filtered data
+    const headerRow = finalAoAFiltered[0];
+    const groupName1 = globalColumnHeaders[previewColumnIndex] || getColumnName(previewColumnIndex);
+    const groupIdx1 = headerRow.indexOf(groupName1);
 
-    files.forEach(file => {
-        const fileSheetData = file.sheetData[globalSheetIndex];
-        if (fileSheetData && fileSheetData.length > 1) {
-            const dataRows = fileSheetData.slice(1);
-            dataRows.forEach(row => {
-                if (!isRowEmpty(row)) {
-                    uniqueVal1.add(String(row[previewColumnIndex] || '').trim());
-                    if (previewColumnIndex2 !== -1) {
-                        uniqueVal2.add(String(row[previewColumnIndex2] || '').trim());
-                    }
-                }
-            });
-        }
-    });
-
+    let groupName2 = null;
+    let groupIdx2 = -1;
     if (previewColumnIndex2 !== -1) {
-        uniqueVal1.forEach(v1 => {
-            uniqueVal2.forEach(v2 => {
-                const combinedVal = `${v1}-${v2}`;
-                const displayVal = combinedVal === '-' ? '(Empty)' : combinedVal;
-                summaryCounts[displayVal] = 0;
-            });
-        });
-    } else {
-        uniqueVal1.forEach(v1 => {
-            const displayVal = v1 === '' ? '(Empty)' : v1;
-            summaryCounts[displayVal] = 0;
-        });
+        groupName2 = globalColumnHeaders[previewColumnIndex2] || getColumnName(previewColumnIndex2);
+        groupIdx2 = headerRow.indexOf(groupName2);
     }
 
-    // Use finalAoAFiltered for summary calculations as it contains the processed data
-    const originalDataColumnCount = downloadableHeader.length - 2;
+    // 2. Process the data rows to get counts
+    const summaryDataMap = {}; // key -> count
+    
     for (let i = 1; i < finalAoAFiltered.length; i++) {
         const row = finalAoAFiltered[i];
-        const sourceFile = row[row.length - 1]; // Source File is the last column in filtered AoA
-        if (sourceFile && String(sourceFile).trim() !== '') {
-            const val1 = String(row[previewColumnIndex + 1] || '').trim(); // Approximating
-            const val2 = previewColumnIndex2 !== -1 ? String(row[previewColumnIndex2 + 1] || '').trim() : '';
-            const combinedVal = previewColumnIndex2 !== -1 ? `${val1}-${val2}` : val1;
-            const displayVal = combinedVal === '' || combinedVal === '-' ? '(Empty)' : combinedVal;
-            summaryCounts[displayVal] = (summaryCounts[displayVal] || 0) + 1;
+        
+        // Skip empty rows (where Source File column is empty)
+        const sourceFile = row[row.length - 1];
+        if (!sourceFile || String(sourceFile).trim() === '') continue;
+        
+        const val1 = groupIdx1 !== -1 ? String(row[groupIdx1] || '').trim() : '';
+        const val2 = groupIdx2 !== -1 ? String(row[groupIdx2] || '').trim() : '';
+        
+        let key;
+        if (groupIdx2 !== -1) {
+            const combined = `${val1 || '(Empty)'} - ${val2 || '(Empty)'}`;
+            key = combined === '(Empty) - (Empty)' ? '(Empty)' : combined;
+        } else {
+            key = val1 || '(Empty)';
         }
+        
+        summaryDataMap[key] = (summaryDataMap[key] || 0) + 1;
     }
 
-    let previewHeaderName = globalColumnHeaders[previewColumnIndex] || getColumnName(previewColumnIndex);
-    if (previewColumnIndex2 !== -1) {
-        const previewHeaderName2 = globalColumnHeaders[previewColumnIndex2] || getColumnName(previewColumnIndex2);
-        previewHeaderName = `${previewHeaderName}-${previewHeaderName2}`;
+    // 3. Construct the summary sheet AoA
+    const summaryHeader = [];
+    if (groupIdx2 !== -1) {
+        summaryHeader.push(`${groupName1} - ${groupName2}`);
+    } else {
+        summaryHeader.push(groupName1);
     }
-    const summaryAoA = [
-        [previewHeaderName, "Count"]
-    ];
-
-    for (const [key, count] of Object.entries(summaryCounts)) {
-        summaryAoA.push([key, count]);
-    }
+    summaryHeader.push("Count");
+    
+    const summaryAoA = [summaryHeader];
+    
+    // Sort keys alphabetically and add to AoA
+    Object.keys(summaryDataMap).sort().forEach(key => {
+        summaryAoA.push([key, summaryDataMap[key]]);
+    });
 
     const wsSummary = XLSX.utils.aoa_to_sheet(summaryAoA);
     XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
@@ -1612,10 +1603,10 @@ function init() {
         });
 
         tableContainer.addEventListener('dragend', (e) => {
-             const td = e.target.closest('td[draggable="true"]');
-             if (td) {
-                 td.classList.remove('opacity-50');
-             }
+            const td = e.target.closest('td[draggable="true"]');
+            if (td) {
+                td.classList.remove('opacity-50');
+            }
         });
 
         tableContainer.addEventListener('dragover', (e) => {
@@ -1645,10 +1636,10 @@ function init() {
             if (td) {
                 e.preventDefault();
                 td.classList.remove('bg-indigo-100', 'border-indigo-400', 'bg-red-50');
-                
+
                 // Double protection: prevent drops on occupied wells
                 if (td.hasAttribute('data-file-id')) return;
-                
+
                 const dataWell = td.getAttribute('data-well');
                 if (!dataWell) return;
                 const well = dataWell.split(':')[0]; // get the coordinate (e.g. 'C4')
@@ -1656,22 +1647,22 @@ function init() {
                 // Check if dropping an external file
                 if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                     handleFileUpload(e.dataTransfer.files, well);
-                } 
+                }
                 // Check if dragging an existing submission/sample
                 else {
                     const dragDataStr = e.dataTransfer.getData('text/plain');
                     if (dragDataStr) {
                         try {
                             const dragData = JSON.parse(dragDataStr);
-                            
+
                             // Handling drops from the plate (individual sample)
                             if (dragData.type === 'plate' && dragData.fileId && dragData.sampleIndex !== undefined) {
                                 handleSampleWellChange(dragData.fileId, dragData.sampleIndex, well);
-                            } 
+                            }
                             // Handling drops from the sidebar (entire submission)
                             else if (dragData.type === 'sidebar' && dragData.fileId) {
                                 handleWellChange(dragData.fileId, well);
-                            } 
+                            }
                             // Support for previous JSON structure if cache holds
                             else if (dragData.fileId && dragData.sampleIndex !== undefined) {
                                 handleSampleWellChange(dragData.fileId, dragData.sampleIndex, well);
