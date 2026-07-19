@@ -12,15 +12,7 @@ let globalColumnHeaders = []; // Array of header strings ['A', 'B', 'C', ...] or
 // Store the sheet number to be used (Sheet 2, index 1)
 let globalSheetIndex = 0; //
 
-// --- GOOGLE SHEETS SYNC STATE ---
-const GOOGLE_SHEET_HEADERS = [
-    "Key", "Submission", "Submission date", "User", "PocketID",
-    "Number of samples", "Number of samples pass QC", "Number of amp",
-    "Total price", "Nextcloud", "Email sent", "Charged",
-    "Submission for", "Run", "Status", "Emails count",
-    "Lab entry", "Data release", "Comment"
-];
-let gasUrl = localStorage.getItem('gas-url') || '';
+
 let shinyUrl = localStorage.getItem('shiny-url') || '';
 
 // --- CONSTANTS ---
@@ -441,7 +433,7 @@ async function handleFileUpload(fileList, targetWell = null) {
 
     const uploadedFiles = Array.from(fileList);
     const newFiles = uploadedFiles.filter(file => {
-        const isDuplicate = files.some(existingFile => existingFile.name === file.name);
+        const isDuplicate = files.some(existingFile => existingFile.originalName === file.name || existingFile.name === file.name);
         if (isDuplicate) {
             console.warn(`File "${file.name}" has already been uploaded. Skipping.`);
         }
@@ -457,7 +449,7 @@ async function handleFileUpload(fileList, targetWell = null) {
 
     const currentSheetIndex = globalSheetIndex; // Use the dynamic index
 
-    const processedFiles = await Promise.all(
+    const processedFilesNested = await Promise.all(
         newFiles.map(async (file) => {
             try {
                 const data = await file.arrayBuffer();
@@ -474,32 +466,92 @@ async function handleFileUpload(fileList, targetWell = null) {
                 });
 
                 const sheetNameForDisplay = workbook.SheetNames[currentSheetIndex] || `Sheet ${currentSheetIndex + 1} (Missing)`;
-                const sheetDataForProcessing = sheetData[currentSheetIndex] || []; // 🌟 MODIFIED
+                const sheetDataForProcessing = sheetData[currentSheetIndex] || []; 
 
-                const dataRowsToProcess = sheetDataForProcessing.length > 0 ? sheetDataForProcessing.slice(1) : [];
-                const filteredDataRows = dataRowsToProcess.filter(row => !isRowEmpty(row));
-                const filteredRowsCount = filteredDataRows.length;
+                if (sheetDataForProcessing.length <= 1) {
+                    return [];
+                }
 
-                // previewCellCount is the number of non-empty non-header rows, capped at 96
-                const previewCellCount = Math.min(filteredRowsCount, GRID_SIZE);
+                const headerRow = sheetDataForProcessing[0];
+                let submissionColIndex = -1;
+                if (headerRow) {
+                    submissionColIndex = headerRow.findIndex(h => {
+                        if (!h) return false;
+                        const headerStr = h.toString().toLowerCase().replace(/\s+/g, '');
+                        return headerStr === 'samplesubmissionid';
+                    });
+                }
 
-                return {
-                    id: Math.random().toString(36).substr(2, 9),
-                    name: file.name,
-                    dataRows: filteredRowsCount, // Non-empty rows count for display (UNCAPPED)
-                    previewCellCount: previewCellCount, // Capped at 96 (Used for positioning/collision)
-                    sheetData: sheetData, // Array containing data for ALL sheets
-                    sheetName: sheetNameForDisplay,
-                    startWell: 'A1' // Default starting well
-                };
+                const dataRowsToProcess = sheetDataForProcessing.slice(1).filter(row => !isRowEmpty(row));
+
+                if (submissionColIndex === -1) {
+                    const filteredRowsCount = dataRowsToProcess.length;
+                    const previewCellCount = Math.min(filteredRowsCount, GRID_SIZE);
+                    return [{
+                        id: Math.random().toString(36).substr(2, 9),
+                        originalName: file.name,
+                        name: file.name,
+                        dataRows: filteredRowsCount,
+                        previewCellCount: previewCellCount,
+                        sheetData: sheetData,
+                        sheetName: sheetNameForDisplay,
+                        startWell: 'A1'
+                    }];
+                }
+
+                // Group rows by submission ID
+                const groups = {};
+                dataRowsToProcess.forEach(row => {
+                    const subId = row[submissionColIndex] ? row[submissionColIndex].toString().trim() : 'Unknown';
+                    if (!groups[subId]) {
+                        groups[subId] = [];
+                    }
+                    groups[subId].push(row);
+                });
+
+                const splitFiles = [];
+                for (const subId in groups) {
+                    const groupRows = groups[subId];
+                    const filteredRowsCount = groupRows.length;
+                    const previewCellCount = Math.min(filteredRowsCount, GRID_SIZE);
+                    
+                    const newSheetData = sheetData.map((sd, index) => {
+                        if (index === currentSheetIndex) {
+                            return [headerRow, ...groupRows];
+                        }
+                        return sd; 
+                    });
+
+                    let finalName = file.name;
+                    if (Object.keys(groups).length > 1 || subId !== 'Unknown') {
+                        const lastDot = file.name.lastIndexOf('.');
+                        if (lastDot !== -1) {
+                            finalName = `${file.name.substring(0, lastDot)}_${subId}${file.name.substring(lastDot)}`;
+                        } else {
+                            finalName = `${file.name}_${subId}`;
+                        }
+                    }
+
+                    splitFiles.push({
+                        id: Math.random().toString(36).substr(2, 9),
+                        originalName: file.name,
+                        name: finalName,
+                        dataRows: filteredRowsCount,
+                        previewCellCount: previewCellCount,
+                        sheetData: newSheetData,
+                        sheetName: sheetNameForDisplay,
+                        startWell: 'A1'
+                    });
+                }
+                return splitFiles;
             } catch (error) {
                 console.error("Error processing file:", file.name, error);
-                return null;
+                return [];
             }
         })
     );
 
-    const validProcessedFiles = processedFiles.filter(f => f !== null);
+    const validProcessedFiles = processedFilesNested.flat().filter(f => f !== null);
 
     let referenceHeaderJSON = null;
     if (files.length > 0) {
@@ -836,25 +888,7 @@ function downloadSummary() {
     XLSX.writeFile(wb, "submissions_summary.xlsx");
 }
 
-// --- GOOGLE SHEETS SYNC LOGIC ---
 
-/**
- * Generates a random 8-character hex key.
- */
-function generateRandomKey() {
-    return Math.random().toString(16).substr(2, 8);
-}
-
-/**
- * Persists GAS settings to localStorage.
- */
-function saveGasSettings() {
-    const urlInput = document.getElementById('gas-url');
-    if (urlInput) {
-        gasUrl = urlInput.value.trim();
-        localStorage.setItem('gas-url', gasUrl);
-    }
-}
 
 /**
  * Persists Shiny settings to localStorage.
@@ -947,21 +981,7 @@ async function syncToShiny() {
 }
 
 
-/**
- * Opens the Google Sheets mapping modal.
- */
-function showMappingModal() {
-    const modal = document.getElementById('sync-modal');
-    const urlInput = document.getElementById('gas-url');
 
-    if (!modal || files.length === 0) return;
-
-    // Load saved URL
-    if (urlInput) urlInput.value = gasUrl;
-
-    renderSubmissionMappingDropdown();
-    modal.classList.remove('hidden');
-}
 
 /**
  * Opens the Shiny App sync modal.
@@ -986,147 +1006,7 @@ function closeSpecificModal(modalId) {
     if (modal) modal.classList.add('hidden');
 }
 
-/**
- * Renders only the Submission column mapping dropdown.
- */
-function renderSubmissionMappingDropdown() {
-    const dropdown = document.getElementById('submission-column-select');
-    if (!dropdown || files.length === 0) return;
 
-    const excelHeaders = globalColumnHeaders;
-
-    // Try to auto-map based on name "Submission"
-    let autoMappedIndex = -1;
-    excelHeaders.forEach((header, index) => {
-        if (header.toLowerCase().includes('submission')) {
-            autoMappedIndex = index;
-        }
-    });
-
-    let options = `<option value="-1">-- Select Column --</option>`;
-    excelHeaders.forEach((header, index) => {
-        const letter = getColumnName(index);
-        const selected = index === autoMappedIndex ? 'selected' : '';
-        options += `<option value="${index}" ${selected}>${header} (${letter})</option>`;
-    });
-
-    dropdown.innerHTML = options;
-}
-
-/**
- * Prepares and sends all submissions to Google Sheets with automated defaults.
- */
-async function startGasSync() {
-    saveGasSettings();
-
-    if (!gasUrl) {
-        alert('Please provide a Google Apps Script Web App URL.');
-        return;
-    }
-
-    const subSelect = document.getElementById('submission-column-select');
-    const submissionColumnIndex = parseInt(subSelect.value, 10);
-
-    if (submissionColumnIndex === -1) {
-        alert('Please select the Excel column for "Submission".');
-        return;
-    }
-
-    const startBtn = document.getElementById('start-sync');
-    const btnText = document.getElementById('sync-btn-text');
-    const spinner = document.getElementById('sync-spinner');
-    const statusText = document.getElementById('sync-status');
-
-    // UI Feedback: Loading
-    startBtn.disabled = true;
-    btnText.textContent = 'Syncing...';
-    spinner.classList.remove('hidden');
-
-    let successCount = 0;
-    let errorCount = 0;
-    const now = new Date();
-    const todayFormatted = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()}`;
-
-    // Process each file as one submission
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        statusText.textContent = `Sending ${i + 1}/${files.length}: ${file.name}`;
-
-        // Get first non-empty data row (excluding header)
-        const sheetData = file.sheetData[globalSheetIndex];
-        if (!sheetData || sheetData.length <= 1) {
-            errorCount++;
-            continue;
-        }
-
-        const firstDataRow = sheetData.slice(1).find(row => !isRowEmpty(row));
-        if (!firstDataRow) {
-            errorCount++;
-            continue;
-        }
-
-        // Generate dynamic timestamp for Lab entry
-        const labEntryTimestamp = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
-
-        // Extract Portal Username from Column D (index 3) to be looked up by GAS
-        const portalUsername = String(firstDataRow[3] || "").toLowerCase().trim();
-
-        // Prepare submission object following the 19-header structure
-        const rawSubmission = String(firstDataRow[submissionColumnIndex] || "");
-        const submission = {
-            "Key": generateRandomKey(),
-            "Submission": rawSubmission.slice(-5),
-            "Submission date": todayFormatted,
-            "portalUsername": portalUsername, // Sent for server-side ID lookup
-            "Number of samples": file.dataRows, // Total non-empty rows count
-            "Number of samples pass QC": file.dataRows,
-            "Number of amplicons": 0,
-            "Email sent": "false",
-            "Charged": "false",
-            "Status": "New",
-            "Lab entry": labEntryTimestamp
-        };
-
-        // Ensure all other headers are sent as empty strings
-        GOOGLE_SHEET_HEADERS.forEach(h => {
-            if (submission[h] === undefined) {
-                submission[h] = "";
-            }
-        });
-
-        try {
-            await fetch(gasUrl, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(submission)
-            });
-            successCount++;
-        } catch (error) {
-            console.error(`Error syncing ${file.name}:`, error);
-            errorCount++;
-        }
-    }
-
-    // Done
-    spinner.classList.add('hidden');
-    if (btnText) btnText.textContent = 'Send Submissions';
-    startBtn.disabled = false;
-
-    if (errorCount === 0) {
-        statusText.textContent = `Successfully synced all ${successCount} submissions!`;
-        statusText.className = 'text-xs font-medium text-green-600';
-    } else {
-        statusText.textContent = `Sync complete. Success: ${successCount}, Failed: ${errorCount}`;
-        statusText.className = 'text-xs font-medium text-orange-600';
-    }
-
-    setTimeout(() => {
-        if (successCount > 0 && errorCount === 0) {
-            closeSpecificModal('sync-modal');
-        }
-    }, 1000);
-}
 
 // --- RENDERING FUNCTIONS ---
 
@@ -1391,10 +1271,7 @@ function renderMergedData() {
     downloadButton.disabled = false;
     if (downloadSummaryButton) downloadSummaryButton.disabled = false;
 
-    const syncGoogleBtn = document.getElementById('sync-google-button');
-    if (syncGoogleBtn) {
-        syncGoogleBtn.disabled = files.length === 0;
-    }
+
     const syncShinyBtn = document.getElementById('sync-shiny-button');
     if (syncShinyBtn) {
         syncShinyBtn.disabled = files.length === 0;
@@ -1688,14 +1565,9 @@ function init() {
     renderColumnSelect();
 
     // --- SYNC LISTENERS ---
-    const syncGoogleBtn = document.getElementById('sync-google-button');
     const syncShinyToolbarBtn = document.getElementById('sync-shiny-button');
-    const startGasSyncBtn = document.getElementById('start-sync');
     const startShinySyncBtn = document.getElementById('start-shiny-sync');
 
-    if (syncGoogleBtn) {
-        syncGoogleBtn.addEventListener('click', showMappingModal);
-    }
     if (syncShinyToolbarBtn) {
         syncShinyToolbarBtn.addEventListener('click', showShinyModal);
     }
@@ -1708,17 +1580,8 @@ function init() {
         });
     });
 
-    if (startGasSyncBtn) {
-        startGasSyncBtn.addEventListener('click', startGasSync);
-    }
     if (startShinySyncBtn) {
         startShinySyncBtn.addEventListener('click', syncToShiny);
-    }
-
-    // Persist settings on change
-    const gasUrlInput = document.getElementById('gas-url');
-    if (gasUrlInput) {
-        gasUrlInput.addEventListener('input', saveGasSettings);
     }
     const shinyUrlInput = document.getElementById('shiny-url');
     if (shinyUrlInput) {
