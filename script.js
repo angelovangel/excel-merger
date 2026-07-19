@@ -723,7 +723,23 @@ function getMergedAoAData() {
     }
 
     const finalAoAFiltered = [];
-    const prioritizedColumnIndices = [3, 4, 5, 6];
+    const normalizedHeader = downloadableHeader.slice(1, -1).map(h => String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
+    
+    // Matchers for 1. User, 2. Sample Name, 3. Sample Type
+    const columnMatchers = [
+        (h) => h.includes('username') || h.includes('requester'),
+        (h) => h.includes('samplename') || h.includes('sampledetails'),
+        (h) => h.includes('sampletype') || h.includes('typeofsample')
+    ];
+    
+    const prioritizedColumnIndices = [];
+    columnMatchers.forEach(matcher => {
+        const idx = normalizedHeader.findIndex(matcher);
+        if (idx !== -1 && !prioritizedColumnIndices.includes(idx)) {
+            prioritizedColumnIndices.push(idx);
+        }
+    });
+
     const orderedColumnIndices = [];
 
     prioritizedColumnIndices.forEach(idx => {
