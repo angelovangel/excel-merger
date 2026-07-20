@@ -453,7 +453,7 @@ async function handleFileUpload(fileList, targetWell = null) {
         newFiles.map(async (file) => {
             try {
                 const data = await file.arrayBuffer();
-                const workbook = XLSX.read(data, { type: 'array' });
+                const workbook = XLSX.read(data, { type: 'array', raw: true });
 
                 const sheetData = [];
 
@@ -462,11 +462,11 @@ async function handleFileUpload(fileList, targetWell = null) {
                     const worksheet = workbook.Sheets[name];
                     // We extract ALL sheets data and store it, so when the sheet index changes, 
                     // we don't have to re-upload.
-                    sheetData[index] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    sheetData[index] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
                 });
 
                 const sheetNameForDisplay = workbook.SheetNames[currentSheetIndex] || `Sheet ${currentSheetIndex + 1} (Missing)`;
-                const sheetDataForProcessing = sheetData[currentSheetIndex] || []; 
+                const sheetDataForProcessing = sheetData[currentSheetIndex] || [];
 
                 if (sheetDataForProcessing.length <= 1) {
                     return [];
@@ -514,12 +514,12 @@ async function handleFileUpload(fileList, targetWell = null) {
                     const groupRows = groups[subId];
                     const filteredRowsCount = groupRows.length;
                     const previewCellCount = Math.min(filteredRowsCount, GRID_SIZE);
-                    
+
                     const newSheetData = sheetData.map((sd, index) => {
                         if (index === currentSheetIndex) {
                             return [headerRow, ...groupRows];
                         }
-                        return sd; 
+                        return sd;
                     });
 
                     let finalName = file.name;
@@ -724,14 +724,15 @@ function getMergedAoAData() {
 
     const finalAoAFiltered = [];
     const normalizedHeader = downloadableHeader.slice(1, -1).map(h => String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
-    
+
     // Matchers for 1. User, 2. Sample Name, 3. Sample Type
     const columnMatchers = [
         (h) => h.includes('username') || h.includes('requester'),
         (h) => h.includes('samplename') || h.includes('sampledetails'),
-        (h) => h.includes('sampletype') || h.includes('typeofsample')
+        (h) => h.includes('sampletype') || h.includes('typeofsample'),
+        (h) => h.includes('size') || h.includes('sizes')
     ];
-    
+
     const prioritizedColumnIndices = [];
     columnMatchers.forEach(matcher => {
         const idx = normalizedHeader.findIndex(matcher);
@@ -827,17 +828,17 @@ function downloadMerged() {
 
     // 2. Process the data rows to get counts
     const summaryDataMap = {}; // key -> count
-    
+
     for (let i = 1; i < finalAoAFiltered.length; i++) {
         const row = finalAoAFiltered[i];
-        
+
         // Skip empty rows (where Source File column is empty)
         const sourceFile = row[row.length - 1];
         if (!sourceFile || String(sourceFile).trim() === '') continue;
-        
+
         const val1 = groupIdx1 !== -1 ? String(row[groupIdx1] || '').trim() : '';
         const val2 = groupIdx2 !== -1 ? String(row[groupIdx2] || '').trim() : '';
-        
+
         let key;
         if (groupIdx2 !== -1) {
             const combined = `${val1 || '(Empty)'} - ${val2 || '(Empty)'}`;
@@ -845,7 +846,7 @@ function downloadMerged() {
         } else {
             key = val1 || '(Empty)';
         }
-        
+
         summaryDataMap[key] = (summaryDataMap[key] || 0) + 1;
     }
 
@@ -857,9 +858,9 @@ function downloadMerged() {
         summaryHeader.push(groupName1);
     }
     summaryHeader.push("Count");
-    
+
     const summaryAoA = [summaryHeader];
-    
+
     // Sort keys alphabetically and add to AoA
     Object.keys(summaryDataMap).sort().forEach(key => {
         summaryAoA.push([key, summaryDataMap[key]]);
