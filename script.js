@@ -1606,6 +1606,21 @@ function init() {
     }
 
     updateApp(); // Also calls renderColumnSelect/renderMergedData
+
+    // --- POSTMESSAGE LISTENER FOR TRANSFERRING DATA ---
+    window.addEventListener('message', async (event) => {
+        if (event.data && event.data.type === 'csv-transfer') {
+            const { csvData, filename } = event.data;
+            if (csvData) {
+                const file = new File([csvData], filename || 'data.csv', { type: 'text/csv' });
+                await handleFileUpload([file]);
+            }
+        }
+    });
+
+    if (window.opener) {
+        window.opener.postMessage({ type: 'excel-merger-ready' }, '*');
+    }
 }
 
 window.onload = init;
