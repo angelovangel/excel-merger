@@ -961,7 +961,7 @@ async function syncToShiny() {
     try {
         btn.disabled = true;
         spinner.classList.remove('hidden');
-        btnText.textContent = "Syncing...";
+        btnText.textContent = "Sending...";
         statusText.textContent = "Sending data to Shiny...";
         statusText.className = "text-xs font-medium text-indigo-600";
 
@@ -986,14 +986,14 @@ async function syncToShiny() {
         }
 
     } catch (error) {
-        console.error("Shiny sync error:", error);
-        statusText.textContent = `Sync failed: ${error.message}`;
+        console.error("Shiny send error:", error);
+        statusText.textContent = `Send failed: ${error.message}`;
         statusText.className = "text-xs font-medium text-red-600";
-        alert(`Error syncing to Shiny: ${error.message}. Is the Shiny app running?`);
+        alert(`Error sending to Shiny: ${error.message}. Is the Shiny app running?`);
     } finally {
         btn.disabled = false;
         spinner.classList.add('hidden');
-        btnText.textContent = "Sync to Shiny App";
+        btnText.textContent = "Send to Shiny App";
     }
 }
 
