@@ -870,7 +870,7 @@ function downloadMerged() {
     XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
 
     // 5. Write and download the file
-    XLSX.writeFile(wb, `sheet${sheetNum}_plate_data.xlsx`);
+    XLSX.writeFile(wb, `sheet${sheetNum}_combined_data.xlsx`);
 }
 
 /**

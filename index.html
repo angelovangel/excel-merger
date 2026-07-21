@@ -67,8 +67,14 @@
                             <h2 id="file-list-header" class="text-gray-500 mb-4 sm:mb-0">
                                 Uploaded Files (0)
                             </h2>
-                            <button id="collapse-files-btn" class="text-gray-400 hover:text-gray-800 p-1 rounded bg-gray-50 hover:bg-gray-100 transition-colors border border-transparent hover:border-gray-200" title="Hide file list">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                            <button id="collapse-files-btn"
+                                class="text-gray-400 hover:text-gray-800 p-1 rounded bg-gray-50 hover:bg-gray-100 transition-colors border border-transparent hover:border-gray-200"
+                                title="Hide file list">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                    stroke-linejoin="round">
+                                    <path d="m15 18-6-6 6-6" />
+                                </svg>
                             </button>
                         </div>
 
@@ -80,14 +86,20 @@
 
                 <div id="right-column" class="lg:w-2/3 mt-6 lg:mt-0">
                     <div id="merged-data-view" class="hidden bg-white rounded-2xl shadow-xl p-6">
-                        <div class="flex justify-between items-center mb-6 border-b pb-4">
+                        <div class="flex justify-start items-center mb-6 border-b pb-4">
                             <h2 class="text-gray-500 flex items-center gap-2">
-                                <button id="expand-files-btn" class="hidden text-gray-500 hover:text-gray-800 p-1 bg-gray-50 hover:bg-gray-100 rounded transition-colors border border-gray-200" title="Show file list">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                                <button id="expand-files-btn"
+                                    class="hidden text-gray-500 hover:text-gray-800 p-1 bg-gray-50 hover:bg-gray-100 rounded transition-colors border border-gray-200"
+                                    title="Show file list">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round">
+                                        <path d="m9 18 6-6-6-6" />
+                                    </svg>
                                 </button>
                             </h2>
                             <button id="download-button"
-                                class="flex items-center gap-2 bg-gray-600 text-white px-4 py-1 rounded-xl shadow-lg hover:bg-gray-700 transition-all font-semibold text-sm"
+                                class="mx-4 flex items-center gap-2 bg-gray-600 text-white px-4 py-1 rounded-xl shadow-lg hover:bg-gray-700 transition-all font-semibold text-sm"
                                 disabled>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
                                     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
